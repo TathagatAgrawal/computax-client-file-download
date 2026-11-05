@@ -1,0 +1,17 @@
+[project]
+name = "computax-client-file-download"
+version = "0.1.0"
+description = "Local web app to collect ITR-V and Computation PDFs for a CompuTax client across years"
+readme = "README.md"
+authors = [
+    { name = "Tathagat Agrawal", email = "tathagat.2909@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+computax-client-file-download = "computax_client_file_download:main"
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"

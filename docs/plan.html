@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompuTax Client File Downloader — Plan</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e2e2de;
+    --accent: #2f5bd3; --accent-soft: #e8eefc; --ok: #1f8a4c; --ok-soft: #e6f4ec;
+    --warn: #b26a00; --warn-soft: #fdf3e2; --bad: #c0392b; --bad-soft: #fbeae8;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 30px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  h2 { font-size: 22px; margin: 56px 0 12px; padding-top: 16px; border-top: 1px solid var(--line); letter-spacing: -0.01em; }
+  h3 { font-size: 17px; margin: 28px 0 8px; }
+  p, li { max-width: 78ch; }
+  code { font-family: var(--mono); font-size: 0.88em; background: #efefec; padding: 1px 5px; border-radius: 4px; }
+  pre { font-family: var(--mono); font-size: 13px; background: #1e1f24; color: #e6e6e6; padding: 14px 16px; border-radius: 8px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  nav.toc { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 20px; columns: 2; font-size: 14px; }
+  nav.toc a { color: var(--accent); text-decoration: none; display: block; padding: 2px 0; }
+  table { border-collapse: collapse; width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: 14px; margin: 12px 0; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f0f0ed; font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; background: #ececea; color: var(--muted); font-weight: 600; }
+  .tag.rec { background: var(--ok-soft); color: var(--ok); }
+
+  /* Architecture diagram */
+  .arch { display: grid; grid-template-columns: 1fr 70px 1.3fr 70px 1fr; align-items: center; gap: 0; margin: 20px 0; }
+  .box { background: var(--panel); border: 1.5px solid var(--line); border-radius: 10px; padding: 14px 16px; font-size: 13.5px; }
+  .box h4 { margin: 0 0 6px; font-size: 14px; }
+  .box ul { margin: 0; padding-left: 18px; }
+  .box.core { border-color: var(--accent); }
+  .arrow { text-align: center; color: var(--muted); font-size: 12px; line-height: 1.3; }
+  .arrow b { display: block; font-size: 22px; color: var(--accent); }
+
+  /* UI mockups */
+  .mock-wrap { background: #dcdcd8; border-radius: 12px; padding: 18px; margin: 16px 0 8px; }
+  .win { background: var(--panel); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.12); overflow: hidden; max-width: 720px; margin: 0 auto; }
+  .win-bar { background: #ececea; padding: 8px 12px; display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+  .win-bar i { width: 11px; height: 11px; border-radius: 50%; background: #d0d0cc; display: inline-block; }
+  .win-bar span { margin-left: 10px; background: #fff; border-radius: 6px; padding: 2px 10px; flex: 1; font-family: var(--mono); font-size: 11px; }
+  .app { padding: 22px 26px 26px; }
+  .app-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
+  .app-head h5 { font-size: 18px; margin: 0; }
+  .app-head small { color: var(--muted); font-size: 12px; }
+  .app-head small a { color: var(--accent); }
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+  .field .hint { color: var(--muted); font-size: 12px; font-weight: 400; }
+  .input { border: 1.5px solid #cfcfca; border-radius: 8px; padding: 8px 12px; font-size: 14px; background: #fff; display: flex; justify-content: space-between; align-items: center; }
+  .input.focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .input .ph { color: #a0a0a0; }
+  .dropdown { border: 1px solid var(--line); border-radius: 8px; margin-top: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.08); font-size: 13.5px; overflow: hidden; }
+  .dropdown div { padding: 6px 12px; display: flex; justify-content: space-between; }
+  .dropdown div.sel { background: var(--accent-soft); }
+  .dropdown mark { background: none; color: var(--accent); font-weight: 700; }
+  .dropdown small { color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1.5px solid #cfcfca; border-radius: 99px; padding: 3px 12px; font-size: 13px; background: #fff; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.off { color: #b5b5b0; border-style: dashed; }
+  .row { display: flex; gap: 8px; align-items: center; font-size: 13px; margin-top: 8px; color: var(--muted); }
+  .mini { border: 1.5px solid #cfcfca; border-radius: 6px; padding: 2px 10px; background: #fff; color: var(--ink); }
+  .btn { display: inline-block; border-radius: 8px; padding: 8px 16px; font-weight: 600; font-size: 14px; border: 1.5px solid #cfcfca; background: #fff; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.sm { padding: 4px 10px; font-size: 12.5px; }
+  .actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .summary { font-size: 13px; color: var(--muted); }
+  .res { width: 100%; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; }
+  .res td, .res th { padding: 6px 10px; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .miss { color: var(--bad); font-weight: 600; }
+  .wn { color: var(--warn); font-weight: 600; }
+  .modal-bg { background: rgba(0,0,0,.25); padding: 26px; }
+  .modal { background: #fff; border-radius: 10px; max-width: 520px; margin: 0 auto; padding: 18px 20px; box-shadow: 0 10px 40px rgba(0,0,0,.2); font-size: 13.5px; }
+  .crumbs { font-family: var(--mono); font-size: 12px; background: #f3f3f0; padding: 6px 10px; border-radius: 6px; margin: 8px 0; }
+  .shortcuts { display: flex; gap: 6px; margin-bottom: 8px; }
+  .dirlist { border: 1px solid var(--line); border-radius: 8px; max-height: 180px; overflow: hidden; }
+  .dirlist div { padding: 5px 12px; border-bottom: 1px solid #f0f0ed; }
+  .dirlist div.sel { background: var(--accent-soft); }
+  .caption { text-align: center; color: var(--muted); font-size: 13px; margin: 6px 0 24px; }
+  .banner-ok { background: var(--ok-soft); color: var(--ok); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>CompuTax Client File Downloader</h1>
+<p class="sub">Plan, system design and UI design — draft for review, 5 Nov 2026. Nothing beyond the project scaffold has been built yet.</p>
+
+<nav class="toc">
+  <a href="#summary">1. Summary</a>
+  <a href="#data">2. What the CompuTax folder looks like</a>
+  <a href="#reqs">3. Requirements</a>
+  <a href="#arch">4. System design</a>
+  <a href="#rules">5. File-matching rules</a>
+  <a href="#api">6. Local HTTP API</a>
+  <a href="#ui">7. UI design</a>
+  <a href="#dist">8. Zero-dependency distribution</a>
+  <a href="#layout">9. Project layout</a>
+  <a href="#security">10. Safety &amp; edge cases</a>
+  <a href="#testing">11. Testing</a>
+  <a href="#milestones">12. Milestones</a>
+  <a href="#questions">13. Decisions for you</a>
+</nav>
+
+<!-- ================================================================== -->
+<h2 id="summary">1. Summary</h2>
+<p>A small local web app. The user double-clicks one executable (Windows, macOS or Linux). It starts a web server on <code>127.0.0.1</code> and opens the browser. On first launch, it asks once for the location of the <code>CompuTax</code> folder. After that, the user picks a client ID from a fuzzy-search dropdown, picks the years (a range, separate years, or both) and picks a destination folder. They click <b>Copy files</b>, and the app copies each year's <code>ITRV_&lt;id&gt;.pdf</code> and <code>Computation_&lt;id&gt;_&lt;year&gt;_&lt;n&gt;.pdf</code> into the destination. It then shows what was found and what was missing.</p>
+<ul>
+  <li><b>Backend:</b> Python 3.12, <b>standard library only</b> (<code>http.server</code>, <code>pathlib</code>, <code>shutil</code>, <code>json</code>, <code>webbrowser</code>). No third-party runtime packages.</li>
+  <li><b>Frontend:</b> one HTML page with plain JavaScript and CSS, bundled inside the app. No framework, no CDN, and it works offline.</li>
+  <li><b>Shipping:</b> PyInstaller builds a single-file executable per OS in GitHub Actions. The user installs nothing, not even Python.</li>
+  <li><b>State:</b> no login, no database and no history. The only thing saved is the CompuTax folder path, so the app asks for it just once (see <a href="#questions">decision 1</a>).</li>
+</ul>
+
+<!-- ================================================================== -->
+<h2 id="data">2. What the CompuTax folder looks like</h2>
+<p>I surveyed <code>~/projects/CompuTax</code> (3.1 GB, still being copied). The structure is <code>CompuTax/&lt;year&gt;/&lt;client_id&gt;/&lt;files&gt;</code>. It is flat, with no deeper nesting.</p>
+
+<table>
+  <tr><th>Year folder</th><th class="num">Client folders</th><th class="num">With ITRV</th><th class="num">With Computation</th></tr>
+  <tr><td>2012</td><td class="num">1</td><td class="num">0</td><td class="num">0</td></tr>
+  <tr><td>2017</td><td class="num">7</td><td class="num">7</td><td class="num">2</td></tr>
+  <tr><td>2018</td><td class="num">28</td><td class="num">26</td><td class="num">6</td></tr>
+  <tr><td>2019</td><td class="num">82</td><td class="num">80</td><td class="num">25</td></tr>
+  <tr><td>2020</td><td class="num">352</td><td class="num">334</td><td class="num">334</td></tr>
+  <tr><td>2021</td><td class="num">364</td><td class="num">299</td><td class="num">307</td></tr>
+  <tr><td>2022</td><td class="num">313</td><td class="num">285</td><td class="num">288</td></tr>
+  <tr><td>2023</td><td class="num">319</td><td class="num">283</td><td class="num">285</td></tr>
+  <tr><td>2024</td><td class="num">308</td><td class="num">270</td><td class="num">276</td></tr>
+  <tr><td>2025</td><td class="num">290</td><td class="num">271</td><td class="num">272</td></tr>
+  <tr><td>2026</td><td class="num">271</td><td class="num">245</td><td class="num">247</td></tr>
+</table>
+<p>There are 522 distinct client folder names, which reduce to <b>514 client IDs</b> when case is ignored. IDs are short alphanumerics such as <code>1</code>, <code>103A</code>, <code>109B1</code> and <code>NEHA4</code>.</p>
+
+<h3>A typical client-year folder (<code>2024/1/</code>)</h3>
+<pre><code>1_2024_26AS.pdf        1_2024_AIS.pdf          1_2024_TIS.pdf
+1_2024_AIS_JSON.json   1_2024_BRC.json  ...    Decrypt.json
+Computation_1_2024_1.pdf      <span style="color:#7fd17f">&lt;-- wanted</span>
+ComputationCompare_2024_1.pdf <span style="color:#e08080">&lt;-- NOT wanted (different report)</span>
+ITRV_1.pdf                    <span style="color:#7fd17f">&lt;-- wanted</span>
+ITR.pdf   FiledJson_1_1.json  479341208_CWAxxxxx7L_A3.pdf ...</code></pre>
+
+<h3>Quirks the design must handle</h3>
+<table>
+  <tr><th>Observation</th><th>Example</th><th>How the app handles it</th></tr>
+  <tr><td>The year folder is the <b>Assessment Year</b>. <code>FiledJson</code> in <code>2024/1</code> says <code>AssessmentYear: 2024</code>.</td><td><code>2024</code> = AY 2024-25</td><td>Label years as “AY 2024” in the UI, optionally with “(FY 2023-24)”.</td></tr>
+  <tr><td>The case of a client folder differs across years. The filename case can also differ from the folder's case.</td><td><code>2020/7d/ITRV_7D.pdf</code>, <code>2022/124e/Computation_124E_2022_1.pdf</code>, <code>2020/25A/ITRV_25a.pdf</code></td><td>Client IDs are matched case-insensitively. The dropdown shows one entry per ID, using the most common spelling.</td></tr>
+  <tr><td>Some folders have more than one Computation file.</td><td><code>Computation_160_2022_1.pdf</code> + <code>_2.pdf</code>, and one <code>_3</code></td><td>Copy <b>all</b> <code>Computation_&lt;id&gt;_&lt;year&gt;_*.pdf</code> files. 14 folders have a <code>_2</code> file and 1 has a <code>_3</code> file.</td></tr>
+  <tr><td>Revised ITR-V files exist.</td><td><code>ITRV_160.pdf</code> + <code>ITRV_160_Revised.pdf</code> (6 cases)</td><td>Copy both by default (<a href="#questions">decision 3</a>).</td></tr>
+  <tr><td><code>ComputationCompare_*.pdf</code> shares the “Computation” prefix.</td><td><code>ComputationCompare_2024_1.pdf</code></td><td>Excluded. The pattern requires <code>Computation_</code> followed by the ID.</td></tr>
+  <tr><td>About 2,600 files have a trailing underscore on the extension.</td><td><code>2025/222A/222A_2025_TIS.pdf_</code></td><td>Ignored, because only names ending exactly in <code>.pdf</code> match.</td></tr>
+  <tr><td><b>A misfiled folder:</b> <code>2021/264B/</code> contains only client <b>274</b>'s files.</td><td><code>2021/264B/ITRV_274.pdf</code></td><td>Strict ID matching means 264B shows “not found” for 2021 instead of copying another client's return. The result row warns: “folder contains ITRV for a different ID (274)”.</td></tr>
+  <tr><td>Some client-years have neither file (ITR not filed, or folder still copying).</td><td><code>2024/103A/</code></td><td>Reported as missing in the results, and shown greyed out when picking years.</td></tr>
+  <tr><td>The data is still being copied in.</td><td>—</td><td>A <b>Rescan</b> button rebuilds the index. Copies always re-check the live filesystem.</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<h2 id="reqs">3. Requirements</h2>
+<h3>Functional</h3>
+<ol>
+  <li>On first launch, ask for the location of the <code>CompuTax</code> folder and check that it contains year folders. Remember it so the prompt is one-time. It can be changed later from the header.</li>
+  <li>Show every client ID found in the folder in a dropdown with fuzzy matching.</li>
+  <li>After an ID is chosen, show the years that ID exists in. The user can select separate years, a range, or both.</li>
+  <li>Let the user pick the destination folder.</li>
+  <li>Copy <code>ITRV_&lt;id&gt;.pdf</code> (plus <code>_Revised</code>) and every <code>Computation_&lt;id&gt;_&lt;year&gt;_&lt;n&gt;.pdf</code> for each selected year.</li>
+  <li>Show a per-year report (copied, missing, warnings) with an <b>Open folder</b> button.</li>
+</ol>
+<h3>Non-functional</h3>
+<ul>
+  <li>Runs on Windows, macOS and Linux. The end user installs no dependencies.</li>
+  <li>Local only: binds to <code>127.0.0.1</code> with no network exposure, no login and no telemetry.</li>
+  <li>Never modifies or deletes anything inside <code>CompuTax</code> (read-only).</li>
+  <li>Simple UI: one screen, three inputs, one button.</li>
+</ul>
+
+<!-- ================================================================== -->
+<h2 id="arch">4. System design</h2>
+
+<div class="arch">
+  <div class="box">
+    <h4>Browser (UI)</h4>
+    <ul>
+      <li>index.html + app.js + style.css</li>
+      <li>Fuzzy matcher (client-side)</li>
+      <li>Year picker, folder browser modal</li>
+      <li>Results table</li>
+    </ul>
+  </div>
+  <div class="arrow"><b>⇄</b>HTTP + JSON<br>127.0.0.1:random<br>+ session token</div>
+  <div class="box core">
+    <h4>Python server (stdlib)</h4>
+    <ul>
+      <li><b>server.py</b>: ThreadingHTTPServer, routing, token check, serves static files</li>
+      <li><b>scanner.py</b>: builds the client→years index and resolves files</li>
+      <li><b>copier.py</b>: copies files and builds the per-year report</li>
+      <li><b>browse.py</b>: lists folders for the picker and opens the OS file manager</li>
+      <li><b>settings.py</b>: stores the CompuTax path</li>
+    </ul>
+  </div>
+  <div class="arrow"><b>→</b>read-only<br><br><b>→</b>write</div>
+  <div class="box">
+    <h4>Filesystem</h4>
+    <ul>
+      <li><b>CompuTax/</b> &lt;year&gt;/&lt;id&gt;/ (read)</li>
+      <li><b>Destination</b> folder (write)</li>
+      <li><b>settings.json</b> in the OS config dir (one key)</li>
+    </ul>
+  </div>
+</div>
+
+<h3>Lifecycle</h3>
+<ol>
+  <li><b>Launch.</b> The executable finds a free port and generates a random session token. It starts the server on <code>127.0.0.1</code> and opens <code>http://127.0.0.1:&lt;port&gt;/?t=&lt;token&gt;</code> in the default browser. A small console window shows the URL and says “close this window to quit”.</li>
+  <li><b>Settings.</b> The app reads <code>settings.json</code> for the saved CompuTax path. If the path is missing or no longer valid, the UI shows the one-time setup screen. A <code>--root PATH</code> command-line flag overrides the saved path.</li>
+  <li><b>Index.</b> One <code>os.scandir</code> pass over each <code>&lt;root&gt;/&lt;YYYY&gt;/</code> builds <code>{ID_UPPER: {display_id, years: {year: folder_path}}}</code>. It lists folder names only and does not read any files, so it takes milliseconds for about 2,600 folders. The index is kept in memory and rebuilt on <b>Rescan</b>.</li>
+  <li><b>Per-client detail.</b> When an ID is selected, the server lists only that client's year folders. For each year it reports which ITRV and Computation files exist, so the year chips can show availability.</li>
+  <li><b>Copy.</b> On submit, the server re-resolves files against the live disk and copies them with <code>shutil.copy2</code>, which keeps timestamps. It returns the per-year report.</li>
+  <li><b>Quit.</b> The user clicks <b>Quit</b> in the header or closes the console window. The browser sends a heartbeat every 15 seconds. If no heartbeat arrives for about 2 minutes, the server exits by itself, so no orphan process is left behind.</li>
+</ol>
+
+<h3>Key design choices</h3>
+<table>
+  <tr><th>Choice</th><th>Why</th><th>Alternatives rejected</th></tr>
+  <tr><td>Stdlib <code>http.server</code></td><td>No runtime dependencies, which keeps the PyInstaller build small (about 8–12 MB). With one local user and a handful of requests, a framework adds nothing.</td><td>Flask/FastAPI add dependencies and size with no benefit here.</td></tr>
+  <tr><td>Fuzzy matching in the browser</td><td>514 IDs is tiny. The full list is sent once, so filtering is instant on every keystroke without a server round-trip.</td><td>A server-side search endpoint adds latency for no gain.</td></tr>
+  <tr><td>In-page folder browser for the destination and CompuTax path</td><td>Works the same on every OS and is always in front of the browser. Native dialogs started from a background server process are unreliable: on macOS, tkinter must run on the main thread and the dialog often opens behind the browser.</td><td>A tkinter <code>askdirectory</code> dialog, or a plain text box only. A paste-a-path box is still offered.</td></tr>
+  <tr><td>Strict, case-insensitive ID matching on filenames</td><td>The 264B/274 case shows that “take any ITRV in the folder” could hand over another client's tax return.</td><td>Loose matching.</td></tr>
+  <tr><td>PyInstaller one-file build per OS via GitHub Actions</td><td>PyInstaller cannot cross-compile, so CI runners for each OS produce the binaries.</td><td>Asking the user to install Python or uv.</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<h2 id="rules">5. File-matching rules</h2>
+<p>For client <code>ID</code> and year <code>Y</code>, the client folder is the one under <code>&lt;root&gt;/Y/</code> whose name equals <code>ID</code> case-insensitively. Inside it, these case-insensitive full-name regexes apply:</p>
+<pre><code>ITRV        ^ITRV_{ID}(_Revised)?\.pdf$
+Computation ^Computation_{ID}_{Y}_\d+\.pdf$</code></pre>
+<p><code>{ID}</code> is passed through <code>re.escape</code>. <code>ComputationCompare_*</code>, <code>*.pdf_</code> and every other file are ignored. If a pattern matches nothing but the folder contains an <code>ITRV_*.pdf</code> or <code>Computation_*.pdf</code> for a <i>different</i> ID, the report shows a warning and the file is not copied.</p>
+
+<h3>Output layout</h3>
+<p>Recommended layout (<a href="#questions">decision 2</a>):</p>
+<pre><code>&lt;destination&gt;/
+  264A/
+    AY2021/  ITRV_264A.pdf   Computation_264A_2021_1.pdf
+    AY2022/  ITRV_264A.pdf   Computation_264A_2022_1.pdf
+    AY2023/  ...</code></pre>
+<p>Original filenames are kept. The ITRV filename contains no year, so year subfolders prevent files from different years overwriting each other. If a file with the same name already exists in the destination, the app skips it when its size and modification time are identical, and otherwise overwrites it. Each case appears in the report.</p>
+
+<!-- ================================================================== -->
+<h2 id="api">6. Local HTTP API</h2>
+<p>All <code>/api/*</code> calls must carry the header <code>X-Session-Token</code>. Requests whose <code>Host</code> is not <code>127.0.0.1:&lt;port&gt;</code> or <code>localhost:&lt;port&gt;</code> are rejected.</p>
+<table>
+  <tr><th>Method &amp; path</th><th>Body / query</th><th>Returns</th></tr>
+  <tr><td><code>GET /</code></td><td><code>?t=token</code></td><td>The app page. The token is passed to JS.</td></tr>
+  <tr><td><code>GET /api/settings</code></td><td>—</td><td><code>{root, root_valid}</code></td></tr>
+  <tr><td><code>PUT /api/settings</code></td><td><code>{root}</code></td><td>Validates (at least one <code>YYYY</code> subfolder containing client folders), saves and rebuilds the index. Returns <code>{root, years, client_count}</code> or a 400 with the reason.</td></tr>
+  <tr><td><code>GET /api/clients</code></td><td>—</td><td><code>[{id, years:[2020,…]}]</code>, sorted naturally (1, 2, 10, 103A…)</td></tr>
+  <tr><td><code>POST /api/rescan</code></td><td>—</td><td>Rebuilds the index. Returns the same shape as <code>/api/clients</code>.</td></tr>
+  <tr><td><code>GET /api/clients/{id}</code></td><td>—</td><td><code>{id, years:{2021:{itrv:[…], computation:[…], warnings:[…]}, …}}</code></td></tr>
+  <tr><td><code>GET /api/browse</code></td><td><code>?path=</code> (empty = home)</td><td><code>{path, parent, dirs:[…], shortcuts:[Home, Desktop, Documents, Downloads, drives…]}</code></td></tr>
+  <tr><td><code>POST /api/mkdir</code></td><td><code>{parent, name}</code></td><td>Creates a folder from the picker's “New folder” button.</td></tr>
+  <tr><td><code>POST /api/copy</code></td><td><code>{id, years:[…], dest}</code></td><td><code>{dest_root, years:[{year, copied:[…], skipped:[…], missing:[…], warnings:[…]}], totals}</code></td></tr>
+  <tr><td><code>POST /api/open</code></td><td><code>{path}</code></td><td>Opens the folder in Finder, Explorer or the Linux file manager (<code>open</code> / <code>os.startfile</code> / <code>xdg-open</code>).</td></tr>
+  <tr><td><code>POST /api/heartbeat</code>, <code>POST /api/quit</code></td><td>—</td><td>Liveness check and shutdown.</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<h2 id="ui">7. UI design</h2>
+<p>A single page with a centred card about 640px wide. It uses system fonts and follows the OS light/dark preference. Everything works with the keyboard.</p>
+
+<h3>Screen A — one-time setup (first launch only)</h3>
+<div class="mock-wrap"><div class="win">
+  <div class="win-bar"><i></i><i></i><i></i><span>127.0.0.1:51734</span></div>
+  <div class="app">
+    <div class="app-head"><h5>Welcome — where is your CompuTax folder?</h5></div>
+    <p style="font-size:13.5px;color:var(--muted);margin-top:-8px">This is the folder that contains the year folders (2019, 2020, 2021 …). You only need to do this once.</p>
+    <div class="field">
+      <label>CompuTax folder</label>
+      <div style="display:flex;gap:8px"><div class="input focus" style="flex:1"><span>/Users/me/projects/CompuTax</span></div><span class="btn">Browse…</span></div>
+    </div>
+    <div class="banner-ok">✓ Found 11 year folders (2012–2026) and 514 clients</div>
+    <div class="actions"><span></span><span class="btn primary">Continue</span></div>
+  </div>
+</div></div>
+<p class="caption">Validation runs as the user types or picks a folder. If the path is wrong, the message explains why, for example “this folder has no year subfolders; did you pick CompuTax/2024 instead of CompuTax?”.</p>
+
+<h3>Screen B — main form</h3>
+<div class="mock-wrap"><div class="win">
+  <div class="win-bar"><i></i><i></i><i></i><span>127.0.0.1:51734</span></div>
+  <div class="app">
+    <div class="app-head"><h5>CompuTax file downloader</h5><small>Source: …/CompuTax · <a>change</a> · <a>rescan</a> · <a>quit</a></small></div>
+
+    <div class="field">
+      <label>1. Client ID <span class="hint">— 514 clients · type to search</span></label>
+      <div class="input focus"><span>109b</span><span style="color:var(--muted)">▾</span></div>
+      <div class="dropdown">
+        <div class="sel"><span><mark>109B</mark></span><small>AY 2019–2022 · 4 years</small></div>
+        <div><span><mark>109B</mark>1</span><small>AY 2023–2026 · 4 years</small></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>2. Assessment years <span class="hint">— click to toggle; greyed = no ITRV/Computation found</span></label>
+      <div class="chips">
+        <span class="chip on">2019</span><span class="chip">2020</span><span class="chip on">2021</span><span class="chip on">2022</span>
+      </div>
+      <div class="row">Range: <span class="mini">2021 ▾</span> to <span class="mini">2022 ▾</span> <span class="btn sm">Select range</span> <span class="btn sm">All</span> <span class="btn sm">None</span></div>
+    </div>
+
+    <div class="field">
+      <label>3. Save to</label>
+      <div style="display:flex;gap:8px"><div class="input" style="flex:1"><span>/Users/me/Downloads</span></div><span class="btn">Browse…</span></div>
+    </div>
+
+    <div class="actions">
+      <span class="summary">3 years selected → about 6 files into …/Downloads/109B/</span>
+      <span class="btn primary">Copy files</span>
+    </div>
+  </div>
+</div></div>
+<p class="caption">The year chips appear only after a client is chosen. “Select range” adds the range to the current selection, so a range plus separate years (for example 2020–2022 and 2025) takes two clicks. Destination defaults to Downloads.</p>
+
+<h4>Fuzzy matching behaviour</h4>
+<ul>
+  <li>Case-insensitive. Results are ranked: exact match, then prefix, then substring, then in-order subsequence. Ties are broken by fewer gaps and shorter ID. Matched characters are highlighted.</li>
+  <li>Examples: <code>109b</code> → 109B, 109B1; <code>neha</code> → NEHA1…NEHA5; <code>7d</code> → 7D first.</li>
+  <li>Keys: ↑/↓ to move, Enter to choose, Esc to close. With an empty query, the full list is shown in natural order (scrollable).</li>
+  <li>Optional extra (<a href="#questions">decision 4</a>): show the assessee's name next to the ID and make it searchable. The name would be read from <code>FiledJson_*.json</code>, which exists for about 88% of client-years.</li>
+</ul>
+
+<h3>Screen C — folder picker (used for both CompuTax and destination)</h3>
+<div class="mock-wrap"><div class="modal-bg"><div class="modal">
+  <b>Choose destination folder</b>
+  <div class="crumbs">/ Users / me / Documents / Clients</div>
+  <div class="shortcuts"><span class="btn sm">Home</span><span class="btn sm">Desktop</span><span class="btn sm">Documents</span><span class="btn sm">Downloads</span><span class="btn sm">↑ Up</span></div>
+  <div class="dirlist">
+    <div>📁 2024 returns</div>
+    <div class="sel">📁 Tax exports</div>
+    <div>📁 Scans</div>
+  </div>
+  <div class="actions" style="margin-top:12px"><span class="btn sm">+ New folder</span><span><span class="btn sm">Cancel</span> <span class="btn sm primary" style="background:var(--accent);color:#fff;border-color:var(--accent)">Use this folder</span></span></div>
+</div></div></div>
+<p class="caption">Double-click enters a folder. The path text field on the main form also accepts a pasted path. On Windows, the shortcuts row also lists drives (C:\, D:\ …).</p>
+
+<h3>Screen D — results</h3>
+<div class="mock-wrap"><div class="win">
+  <div class="win-bar"><i></i><i></i><i></i><span>127.0.0.1:51734</span></div>
+  <div class="app">
+    <div class="banner-ok">✓ Copied 6 files for client 109B to /Users/me/Downloads/109B</div>
+    <table class="res">
+      <tr><th>AY</th><th>ITR-V</th><th>Computation</th></tr>
+      <tr><td>2019</td><td class="miss">✗ not found</td><td class="wn">⚠ not found — folder has Computation_274_2019_1.pdf (different ID)</td></tr>
+      <tr><td>2021</td><td class="ok">✓ ITRV_109B.pdf</td><td class="ok">✓ Computation_109B_2021_1.pdf</td></tr>
+      <tr><td>2022</td><td class="ok">✓ ITRV_109B.pdf<br>✓ ITRV_109B_Revised.pdf</td><td class="ok">✓ Computation_109B_2022_1.pdf<br>✓ Computation_109B_2022_2.pdf</td></tr>
+    </table>
+    <div class="actions" style="margin-top:14px"><span class="btn">Open folder</span><span class="btn primary">Start over</span></div>
+  </div>
+</div></div>
+<p class="caption">“Start over” keeps the destination and clears the client and years. The values shown are illustrative.</p>
+
+<!-- ================================================================== -->
+<h2 id="dist">8. Zero-dependency distribution</h2>
+<p>The end user downloads one file for their OS from the GitHub Releases page and runs it.</p>
+<table>
+  <tr><th>OS</th><th>Artifact</th><th>First-run note</th></tr>
+  <tr><td>Windows 10/11</td><td><code>computax-downloader-windows.exe</code></td><td>SmartScreen warns about an unsigned app: “More info → Run anyway”.</td></tr>
+  <tr><td>macOS (Apple Silicon + Intel)</td><td><code>computax-downloader-macos-arm64</code>, <code>…-x86_64</code></td><td>Gatekeeper blocks unsigned apps the first time: right-click → Open, or run <code>xattr -d com.apple.quarantine</code>. Signing and notarisation would need an Apple Developer account ($99/yr).</td></tr>
+  <tr><td>Linux x86_64</td><td><code>computax-downloader-linux</code></td><td><code>chmod +x</code> after download.</td></tr>
+</table>
+<ul>
+  <li>The build runs in <code>.github/workflows/release.yml</code>. A matrix of <code>windows-latest</code>, <code>macos-14</code> (arm64), <code>macos-13</code> (x86_64) and <code>ubuntu-22.04</code> runs <code>uv sync</code> then <code>uv run pyinstaller --onefile --add-data static</code>, triggered by pushing a <code>v*</code> tag. Ubuntu 22.04 keeps glibc old enough for most distros.</li>
+  <li>PyInstaller is a <b>dev</b> dependency only (<code>uv add --dev pyinstaller</code>). The shipped app has zero third-party runtime packages.</li>
+  <li>Developers can still run it with <code>uv run computax-client-file-download [--root PATH] [--port N] [--no-browser]</code>.</li>
+  <li>Note: the repo is private, so whoever downloads releases needs access to it. Alternatively, you can share the binaries directly (for example by email or a shared drive).</li>
+</ul>
+
+<!-- ================================================================== -->
+<h2 id="layout">9. Project layout</h2>
+<pre><code>computax-client-file-download/
+├── pyproject.toml              # uv project; no runtime deps; dev: pytest, pyinstaller
+├── README.md                   # how to run / build / release
+├── docs/plan.html              # this document
+├── src/computax_client_file_download/
+│   ├── __init__.py             # main(): parse args, start server, open browser
+│   ├── server.py               # ThreadingHTTPServer, routing, token/Host checks
+│   ├── scanner.py              # index build, natural sort, file resolution rules
+│   ├── copier.py               # copy + report
+│   ├── browse.py               # folder listing, shortcuts, open-in-file-manager
+│   ├── settings.py             # load/save settings.json in OS config dir
+│   └── static/
+│       ├── index.html
+│       ├── app.js              # state, fuzzy match, year picker, modal, results
+│       └── style.css
+├── tests/
+│   ├── conftest.py             # builds a fake CompuTax tree in tmp_path with all quirks
+│   ├── test_scanner.py
+│   ├── test_copier.py
+│   └── test_server.py          # spins up server on random port; API round-trips
+└── .github/workflows/
+    ├── ci.yml                  # pytest on 3 OSes on every push
+    └── release.yml             # PyInstaller binaries on tag</code></pre>
+<p>The settings file is stored in the standard per-user config folder: <code>%APPDATA%\computax-downloader\settings.json</code> on Windows, <code>~/Library/Application Support/computax-downloader/</code> on macOS, and <code>$XDG_CONFIG_HOME</code> or <code>~/.config/computax-downloader/</code> on Linux. It contains one key, <code>{"computax_root": "…"}</code>.</p>
+
+<!-- ================================================================== -->
+<h2 id="security">10. Safety &amp; edge cases</h2>
+<ul>
+  <li><b>Network:</b> the server binds only to <code>127.0.0.1</code>, so other machines cannot reach it.</li>
+  <li><b>Other local web pages:</b> a random per-launch token plus a check of the <code>Host</code> header block another browser tab or a DNS-rebinding attack from calling the API and copying tax files.</li>
+  <li><b>Path handling:</b> client IDs and years must exist in the index and are never used as raw path fragments. Source paths are resolved and must stay under the CompuTax root.</li>
+  <li><b>Read-only source:</b> the code never opens anything under the root for writing.</li>
+  <li><b>Destination errors</b> (folder missing, no permission, disk full, file locked on Windows) are reported for each file and do not abort the whole batch.</li>
+  <li><b>Network drives:</b> if CompuTax sits on a NAS or SMB share, scanning stays fast because only folder names are listed. Copies may be slower; the button shows a spinner and the files copied so far.</li>
+  <li><b>Port in use:</b> the app asks the OS for a free port. Two copies can run side by side.</li>
+  <li><b>Missing or moved CompuTax folder</b> (for example a drive letter changed): the app goes back to the setup screen with the old path pre-filled.</li>
+</ul>
+
+<!-- ================================================================== -->
+<h2 id="testing">11. Testing</h2>
+<ul>
+  <li><b>Unit tests</b> (pytest) run against a synthetic tree that reproduces every quirk from section 2: mixed case, <code>_Revised</code>, <code>_2</code>/<code>_3</code>, <code>ComputationCompare</code>, <code>.pdf_</code>, the misfiled 264B-style folder, empty folders, and the 2012-style single-file year.</li>
+  <li><b>API tests:</b> start the server on a random port and exercise every endpoint, including token rejection and path-traversal attempts.</li>
+  <li><b>Fuzzy matcher:</b> a small set of query → expected-top-result cases, run in Node by CI or in a browser test page.</li>
+  <li><b>Manual check against the real data:</b> run with <code>--root ~/projects/CompuTax</code> and spot-check about 10 clients across years against Finder.</li>
+  <li><b>CI:</b> pytest runs on Windows, macOS and Linux to catch path and case-sensitivity differences.</li>
+</ul>
+
+<!-- ================================================================== -->
+<h2 id="milestones">12. Milestones</h2>
+<ol>
+  <li><b>Done:</b> git repo, private GitHub repo, uv project scaffold, this plan.</li>
+  <li><b>Core:</b> <code>scanner.py</code> and <code>copier.py</code> with tests.</li>
+  <li><b>Server:</b> routes, token, settings, folder browsing, quit/heartbeat.</li>
+  <li><b>UI:</b> setup screen, main form with fuzzy dropdown and year picker, folder modal, results.</li>
+  <li><b>Packaging:</b> PyInstaller spec, CI workflow, release workflow, and a README with run instructions for each OS.</li>
+  <li><b>Hardening:</b> manual pass over the real CompuTax data, then fixes.</li>
+</ol>
+
+<!-- ================================================================== -->
+<h2 id="questions">13. Decisions for you</h2>
+<table>
+  <tr><th>#</th><th>Question</th><th>Recommendation</th><th>Alternative</th></tr>
+  <tr><td>1</td><td>How should the CompuTax path be remembered? A one-time prompt needs the path saved somewhere, which slightly bends “no data persistence”.</td><td><span class="tag rec">Recommended</span> Save only this path in a one-line <code>settings.json</code> in the OS config folder. Nothing else is ever stored.</td><td>Keep it in memory only, so the app asks once per launch. Or use a <code>--root</code> flag or a <code>computax_root.txt</code> placed next to the executable.</td></tr>
+  <tr><td>2</td><td>Output folder layout?</td><td><span class="tag rec">Recommended</span> <code>dest/&lt;ID&gt;/AY&lt;year&gt;/</code> with the original filenames.</td><td>Flat <code>dest/</code> with ITRV renamed to <code>ITRV_&lt;ID&gt;_&lt;year&gt;.pdf</code>. Or <code>dest/&lt;year&gt;/</code> without the ID folder.</td></tr>
+  <tr><td>3</td><td>Should <code>ITRV_&lt;id&gt;_Revised.pdf</code> be copied?</td><td><span class="tag rec">Recommended</span> Copy both the original and the revised file.</td><td>Copy only the revised file when it exists, or only the original.</td></tr>
+  <tr><td>4</td><td>Show client names (from <code>FiledJson</code>) in the dropdown and make them searchable?</td><td>Worth adding. Typing a name is easier than remembering “109B1”. It costs one JSON read per client at index time (can be done lazily), and names are only shown locally.</td><td>IDs only, exactly as specified.</td></tr>
+  <tr><td>5</td><td>Should year labels show AY or FY?</td><td>“AY 2024” to match the folder names, with “(FY 2023-24)” in small text.</td><td>Raw “2024”.</td></tr>
+  <tr><td>6</td><td>Do you need Intel Mac and Linux builds?</td><td>Build all four. It is free in CI.</td><td>Windows and Apple Silicon only.</td></tr>
+</table>
+
+</main>
+</body>
+</html>
