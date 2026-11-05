@@ -19,7 +19,7 @@ jobs:
       - name: Python tests
         run: uv run pytest -q
       - name: Fuzzy search tests
-        run: node --test tests/
+        run: node --test tests/fuzzy.test.mjs
       - name: Tk is available for the Windows folder dialog
         if: runner.os == 'Windows'
         run: uv run python -c "import tkinter; print(tkinter.TkVersion)"

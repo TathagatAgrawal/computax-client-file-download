@@ -1,4 +1,4 @@
-// Tests for static/fuzzy.js. Run with: node --test tests/
+// Tests for static/fuzzy.js. Run with: node --test tests/fuzzy.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";

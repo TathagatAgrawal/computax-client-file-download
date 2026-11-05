@@ -27,7 +27,7 @@ uv sync
 uv run computax-client-file-download            # start the app and open the browser
 uv run computax-client-file-download --root /path/to/CompuTax --no-browser --port 8765
 uv run pytest                                   # Python tests
-node --test tests/                              # fuzzy-search tests
+node --test tests/fuzzy.test.mjs                # fuzzy-search tests
 ```
 
 Build a one-file executable for the current OS:
