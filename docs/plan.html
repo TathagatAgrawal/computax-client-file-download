@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CompuTax Client File Downloader — Plan</title>
+<title>ITR Fetch — Plan</title>
 <style>
   :root {
     --bg: #f7f7f5; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e2e2de;
@@ -94,7 +94,7 @@
 <body>
 <main>
 
-<h1>CompuTax Client File Downloader</h1>
+<h1>ITR Fetch</h1>
 <p class="sub">Plan, system design and UI design — revision 2, 5 Nov 2026. Decisions from review are applied (see <a href="#decisions">section 13</a>). Nothing beyond the project scaffold has been built yet.</p>
 
 <nav class="toc">
@@ -115,11 +115,11 @@
 
 <!-- ================================================================== -->
 <h2 id="summary">1. Summary</h2>
-<p>A small local web app. The user double-clicks one executable on Windows or macOS. It starts a web server on <code>127.0.0.1</code> and opens the browser. On first launch, it asks once for the location of the <code>CompuTax</code> folder and remembers it. After that, the user searches for a client <b>by ID or by name</b>, picks the years (a range, separate years, or both) and chooses a destination folder in the <b>operating system's own folder dialog</b>. They click <b>Copy files</b>, and the app copies each year's <code>ITRV_&lt;id&gt;.pdf</code> and <code>Computation_&lt;id&gt;_&lt;year&gt;_&lt;n&gt;.pdf</code> into the destination. It then shows what was found and what was missing.</p>
+<p><b>ITR Fetch</b> is a small local web app. The user opens it like any other app on Windows or macOS; no terminal window appears. It starts a web server on <code>127.0.0.1</code> and opens the browser. On first launch, it asks once for the location of the <code>CompuTax</code> folder and remembers it. After that, the user searches for a client <b>by ID or by name</b>, picks the years (a range, separate years, or both) and chooses a destination folder in the <b>operating system's own folder dialog</b>. They click <b>Copy files</b>, and the app copies each year's <code>ITRV_&lt;id&gt;.pdf</code> and <code>Computation_&lt;id&gt;_&lt;year&gt;_&lt;n&gt;.pdf</code> into the destination. It then shows what was found and what was missing.</p>
 <ul>
   <li><b>Backend:</b> Python 3.12, <b>standard library only</b> (<code>http.server</code>, <code>pathlib</code>, <code>shutil</code>, <code>json</code>, <code>webbrowser</code>, <code>tkinter</code> for the Windows folder dialog). No third-party runtime packages.</li>
   <li><b>Frontend:</b> one HTML page with plain JavaScript and CSS, bundled inside the app. No framework, no CDN, and it works offline.</li>
-  <li><b>Shipping:</b> PyInstaller builds a single-file executable for Windows and macOS in GitHub Actions. The user installs nothing, not even Python.</li>
+  <li><b>Shipping:</b> PyInstaller builds a windowless <code>ITR Fetch.exe</code> for Windows and a background <code>ITR Fetch.app</code> for macOS in GitHub Actions, both with the ITR Fetch icon. The user installs nothing, not even Python.</li>
   <li><b>State:</b> no login, no database and no history. The only thing saved is the CompuTax folder path, in a one-key <code>settings.json</code> in the OS's standard settings folder. Client names are held in memory only and never written to disk.</li>
 </ul>
 
@@ -237,14 +237,14 @@ ITR.pdf   479341208_CWAxxxxx7L_A3.pdf ...</code></pre>
 
 <h3>Lifecycle</h3>
 <ol>
-  <li><b>Launch.</b> The executable finds a free port and generates a random session token. It starts the server on <code>127.0.0.1</code> and opens <code>http://127.0.0.1:&lt;port&gt;/?t=&lt;token&gt;</code> in the default browser. A small console window shows the URL and says “close this window to quit”.</li>
+  <li><b>Launch.</b> The app runs in the background with no terminal window (windowless on Windows; on macOS an <code>LSUIElement</code> app with no Dock icon). If an instance is already running (recorded in a temporary <code>instance.json</code> and confirmed with <code>/api/ping</code>), it just opens a new browser tab on that instance and exits. Otherwise it finds a free port, generates a random session token, starts the server on <code>127.0.0.1</code> and opens <code>http://127.0.0.1:&lt;port&gt;/?t=&lt;token&gt;</code> in the default browser.</li>
   <li><b>Settings.</b> The app reads <code>settings.json</code> for the saved CompuTax path. If the path is missing or no longer valid, the UI shows the one-time setup screen. A <code>--root PATH</code> command-line flag overrides the saved path.</li>
   <li><b>Index.</b> One <code>os.scandir</code> pass over each <code>&lt;root&gt;/&lt;YYYY&gt;/</code> builds <code>{ID_UPPER: {display_id, years: {year: folder_path}}}</code>. It lists folder names only, so it takes milliseconds for about 2,600 folders.</li>
   <li><b>Names.</b> A background thread then reads one <code>FiledJson</code> per client (the most recent year that has one) and adds the name to the index. This is roughly 413 small JSON reads, under a second on a local disk and a few seconds on a network share. The dropdown works by ID immediately, and names appear as soon as they are loaded. Both the ID index and the names are rebuilt on <b>Rescan</b>.</li>
   <li><b>Per-client detail.</b> When a client is selected, the server lists only that client's year folders. For each year it reports which ITRV and Computation files exist, so the year chips can show availability.</li>
   <li><b>Choose folder.</b> <b>Browse…</b> calls <code>/api/pick-folder</code>. The server opens the native folder dialog and waits, and the request returns the chosen path, or <code>null</code> if the user cancels.</li>
   <li><b>Copy.</b> On submit, the server re-resolves files against the live disk and copies them with <code>shutil.copy2</code>, which keeps timestamps. It returns the per-year report.</li>
-  <li><b>Quit.</b> The user clicks <b>Quit</b> in the header or closes the console window. The browser sends a heartbeat every 15 seconds. If no heartbeat arrives for 10 minutes, the server exits by itself, so no orphan process is left behind. The timeout is generous because browsers slow down timers in background tabs. The heartbeat timer is paused while a folder dialog is open.</li>
+  <li><b>Quit.</b> Each open page holds a server-sent-events connection to <code>/api/events</code>. When the last one closes (tab closed, browser quit), the server notices immediately and quits after a 4-second grace period, which lets a page reload reconnect. It never quits while a folder dialog is open. If no page connects within 90 seconds of launch (for example, the browser failed to open), it quits too. The header's <b>Quit</b> link stops it at once. Start-up failures are written to <code>error.log</code> in the settings folder, since there is no console.</li>
 </ol>
 
 <h3>Native folder dialog</h3>
@@ -307,7 +307,8 @@ FiledJson   ^FiledJson_{ID}_\d+\.json$        (names only)</code></pre>
   <tr><td><code>POST /api/pick-folder</code></td><td><code>{purpose: "dest" | "root", initial}</code></td><td>Opens the native dialog and blocks until it closes. Returns <code>{path}</code> or <code>{path: null}</code> on cancel. Only one dialog can be open at a time; a second request gets a 409.</td></tr>
   <tr><td><code>POST /api/copy</code></td><td><code>{id, years:[…], dest}</code></td><td><code>{dest_root, years:[{year, copied:[…], skipped:[…], missing:[…], warnings:[…]}], totals}</code></td></tr>
   <tr><td><code>POST /api/open</code></td><td><code>{path}</code></td><td>Opens the folder in Finder or Explorer (<code>open</code> / <code>os.startfile</code>). Only paths created by the last copy are allowed.</td></tr>
-  <tr><td><code>POST /api/heartbeat</code>, <code>POST /api/quit</code></td><td>—</td><td>Liveness check and shutdown.</td></tr>
+  <tr><td><code>GET /api/events</code></td><td><code>?t=token</code> (EventSource can't send headers)</td><td>Server-sent-events stream held open while the page is open; closing it lets the app quit.</td></tr>
+  <tr><td><code>GET /api/ping</code>, <code>POST /api/quit</code></td><td>—</td><td>Liveness check (used by a second launch) and shutdown.</td></tr>
 </table>
 
 <!-- ================================================================== -->
@@ -410,15 +411,15 @@ FiledJson   ^FiledJson_{ID}_\d+\.json$        (names only)</code></pre>
 
 <!-- ================================================================== -->
 <h2 id="dist">8. Zero-dependency distribution</h2>
-<p>The end user downloads one file for their OS from the GitHub Releases page and runs it.</p>
+<p>The end user downloads one file for their OS from the GitHub Releases page and opens it. The app is called <b>ITR Fetch</b>; its icon (a document with a download arrow on a blue rounded square) is drawn in <code>packaging/icon/icon.svg</code> and converted to <code>.icns</code>, <code>.ico</code> and the page favicon by <code>packaging/icon/build_icons.py</code>.</p>
 <table>
   <tr><th>OS</th><th>Artifact</th><th>First-run note</th></tr>
-  <tr><td>Windows 10/11 (x64)</td><td><code>computax-downloader-windows.exe</code></td><td>SmartScreen warns about an unsigned app: “More info → Run anyway”.</td></tr>
-  <tr><td>macOS, Apple Silicon (M1 and later)</td><td><code>computax-downloader-macos-arm64.zip</code> (zipped so the file stays executable)</td><td>Gatekeeper blocks unsigned apps the first time: right-click → Open, or run <code>xattr -d com.apple.quarantine</code>. Signing and notarisation would need an Apple Developer account ($99/yr).</td></tr>
+  <tr><td>Windows 10/11 (x64)</td><td><code>ITR-Fetch-Windows.exe</code></td><td>SmartScreen warns about an unsigned app: “More info → Run anyway”.</td></tr>
+  <tr><td>macOS, Apple Silicon (M1 and later)</td><td><code>ITR-Fetch-macOS.zip</code> containing <code>ITR Fetch.app</code></td><td>Gatekeeper blocks unsigned apps the first time: System Settings → Privacy &amp; Security → “Open Anyway”. Signing and notarisation would need an Apple Developer account ($99/yr).</td></tr>
   
 </table>
 <ul>
-  <li>The build runs in <code>.github/workflows/release.yml</code>, triggered by pushing a <code>v*</code> tag. A matrix of <code>windows-latest</code> and <code>macos-latest</code> (arm64) runs <code>uv sync</code> then <code>uv run pyinstaller packaging/computax-downloader.spec</code> (one file, with <code>static/</code> bundled). The binaries are attached to the release.</li>
+  <li>The build runs in <code>.github/workflows/release.yml</code>, triggered by pushing a <code>v*</code> tag. A matrix of <code>windows-latest</code> and <code>macos-latest</code> (arm64) runs <code>uv sync</code> then <code>uv run pyinstaller packaging/itr-fetch.spec</code> (one file, with <code>static/</code> bundled). The binaries are attached to the release.</li>
   <li>PyInstaller is a <b>dev</b> dependency only (<code>uv add --dev pyinstaller</code>). The shipped app has zero third-party runtime packages. On Windows, PyInstaller bundles Tcl/Tk automatically for the folder dialog. On macOS, Tk is excluded because the dialog uses <code>osascript</code>.</li>
   <li>Developers can still run it with <code>uv run computax-client-file-download [--root PATH] [--port N] [--no-browser]</code>. That also works on Linux, but Linux is not a supported target and has no built binary.</li>
   <li>The repo is private, so whoever downloads releases needs access to it. Alternatively, you can share the binaries directly (for example by email or a shared drive).</li>
@@ -485,7 +486,7 @@ FiledJson   ^FiledJson_{ID}_\d+\.json$        (names only)</code></pre>
   <li><b>Done:</b> git repo, private GitHub repo, uv project scaffold, this plan.</li>
   <li><b>Done (all items below, first version):</b> core, server, UI, packaging. A manual check of the native folder dialog on both a Mac and a Windows PC is still pending.</li>
   <li><b>Core:</b> <code>scanner.py</code>, <code>names.py</code> and <code>copier.py</code> with tests.</li>
-  <li><b>Server:</b> routes, token, settings, native folder dialog, quit/heartbeat.</li>
+  <li><b>Server:</b> routes, token, settings, native folder dialog, single instance, quit when the tab closes.</li>
   <li><b>UI:</b> setup screen, main form with ID + name fuzzy dropdown and year picker, results.</li>
   <li><b>Packaging:</b> PyInstaller spec, CI workflow, release workflow, and a README with run instructions for Windows and macOS.</li>
   <li><b>Hardening:</b> manual pass over the real CompuTax data, then fixes.</li>

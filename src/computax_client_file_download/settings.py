@@ -1,4 +1,8 @@
-"""Load and save the app's only persisted setting: the CompuTax folder path."""
+"""Load and save the CompuTax folder path, and the running-instance record.
+
+The CompuTax path is the only lasting setting. The instance record exists only
+while the app runs, so a second launch can open the running app instead.
+"""
 
 import json
 import os
@@ -41,3 +45,34 @@ def save_root(settings_file: Path, root: str) -> None:
     tmp = settings_file.with_suffix(".tmp")
     tmp.write_text(json.dumps({ROOT_KEY: root}, indent=2), encoding="utf-8")
     os.replace(tmp, settings_file)
+
+
+def instance_file() -> Path:
+    """Return the file that records the running instance's address while it runs."""
+    return config_dir() / "instance.json"
+
+
+def write_instance(path: Path, url: str, token: str) -> None:
+    """Record the running instance so a second launch can reuse it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"url": url, "token": token}), encoding="utf-8")
+
+
+def read_instance(path: Path) -> dict | None:
+    """Return ``{url, token}`` of a previously recorded instance, if any."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    ok = isinstance(data, dict) and isinstance(data.get("url"), str) and isinstance(data.get("token"), str)
+    return data if ok else None
+
+
+def clear_instance(path: Path, token: str) -> None:
+    """Delete the instance record if it still belongs to this run."""
+    data = read_instance(path)
+    if data and data["token"] == token:
+        try:
+            path.unlink()
+        except OSError:
+            pass

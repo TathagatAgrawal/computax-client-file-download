@@ -20,3 +20,16 @@ def test_missing_or_corrupt_file(tmp_path: Path) -> None:
     assert load_root(f) is None
     f.write_text("[1, 2]")
     assert load_root(f) is None
+
+
+def test_instance_record_round_trip_and_ownership(tmp_path: Path) -> None:
+    """Only the run that wrote the instance record can clear it."""
+    from computax_client_file_download.settings import clear_instance, read_instance, write_instance
+
+    f = tmp_path / "instance.json"
+    write_instance(f, "http://127.0.0.1:1234/?t=abc", "abc")
+    assert read_instance(f) == {"url": "http://127.0.0.1:1234/?t=abc", "token": "abc"}
+    clear_instance(f, "someone-else")
+    assert f.exists()
+    clear_instance(f, "abc")
+    assert not f.exists()

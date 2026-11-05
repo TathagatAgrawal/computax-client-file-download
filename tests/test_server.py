@@ -85,7 +85,7 @@ def test_serves_static_but_not_traversal(make_app, computax: Path) -> None:
     """The page and its assets are served; paths outside static are not."""
     client, _, _ = make_app(computax)
     status, body = client.call("GET", "/")
-    assert status == 200 and b"CompuTax file downloader" in body
+    assert status == 200 and b"ITR Fetch" in body
     assert client.call("GET", "/static/app.js")[0] == 200
     assert client.call("GET", "/static/../server.py")[0] == 404
     assert client.call("GET", "/static/%2e%2e%2fserver.py")[0] == 404
@@ -163,3 +163,36 @@ def test_rescan_picks_up_new_folders(make_app, computax: Path) -> None:
     (computax / "2025" / "NEW1").mkdir(parents=True)
     ids = [c["id"] for c in client.call("POST", "/api/rescan")[1]["clients"]]
     assert "NEW1" in ids
+
+
+def test_event_stream_needs_token_and_tracks_open_pages(make_app, computax: Path) -> None:
+    """The presence stream rejects bad tokens and counts open pages."""
+    import http.client
+    import time
+
+    client, _, _ = make_app(computax)
+    server = client.server
+    conn = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
+    conn.request("GET", "/api/events?t=wrong")
+    assert conn.getresponse().status == 401
+    conn.close()
+
+    conn = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
+    conn.request("GET", f"/api/events?t={server.token}")
+    res = conn.getresponse()
+    assert res.status == 200 and res.getheader("Content-Type") == "text/event-stream"
+    assert res.fp.readline().startswith(b"retry:")
+    assert server.presence.count == 1
+    res.close()
+    conn.close()
+    for _ in range(50):
+        if server.presence.count == 0:
+            break
+        time.sleep(0.05)
+    assert server.presence.count == 0 and server.presence.ever_connected
+
+
+def test_ping(make_app, computax: Path) -> None:
+    """Ping answers with the token, so a second launch can find this instance."""
+    client, _, _ = make_app(computax)
+    assert client.call("GET", "/api/ping") == (200, {"ok": True})

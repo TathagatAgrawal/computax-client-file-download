@@ -1,4 +1,4 @@
-/* CompuTax file downloader UI. Talks to the local server's /api endpoints. */
+/* ITR Fetch UI. Talks to the local server's /api endpoints. */
 "use strict";
 
 const $ = (id) => document.getElementById(id);
@@ -513,7 +513,7 @@ $("rescan").addEventListener("click", async () => {
 $("quit").addEventListener("click", async () => {
   await api("POST", "/api/quit").catch(() => {});
   showStopped();
-  $("stopped").textContent = "The app has stopped. You can close this tab.";
+  $("stopped").textContent = "ITR Fetch has stopped. You can close this tab.";
 });
 
 async function selectClientKeepingYears(c) {
@@ -523,20 +523,23 @@ async function selectClientKeepingYears(c) {
   renderYears();
 }
 
-/* ---------- Heartbeat and startup ---------- */
+/* ---------- Presence and startup ---------- */
 
-function heartbeat() {
-  if (!state.stopped) api("POST", "/api/heartbeat").catch(() => {});
+// While this stream is open the app keeps running; closing the tab closes it,
+// and the app quits a few seconds later.
+function connectPresence() {
+  const events = new EventSource(`/api/events?t=${encodeURIComponent(TOKEN)}`);
+  events.onerror = () => {
+    setTimeout(() => {
+      if (events.readyState !== EventSource.OPEN) api("GET", "/api/ping").catch(() => events.close());
+    }, 2500);
+  };
 }
-setInterval(heartbeat, 15000);
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") heartbeat();
-});
 
 (async function start() {
   try {
     const s = await api("GET", "/api/settings");
-    heartbeat();
+    connectPresence();
     $("dest-input").value = s.default_dest;
     if (s.root_valid) {
       state.rootSet = true;

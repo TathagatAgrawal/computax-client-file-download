@@ -3,16 +3,21 @@
 Every ``/api/`` request must carry the per-launch session token, and the Host
 header must name this server, so other web pages open in the browser cannot
 drive the app (including via DNS rebinding).
+
+Each open page keeps a server-sent-events connection to ``/api/events``. When
+the last one closes (tab or browser closed), the app quits after a short grace
+period that lets a page reload reconnect.
 """
 
 import hmac
 import json
 import secrets
+import select
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from .copier import copy_client_files
 from .dialogs import DialogBusy, DialogUnavailable, FolderDialog, default_destination, open_in_file_manager
@@ -26,13 +31,14 @@ CONTENT_TYPES = {
     ".js": "text/javascript; charset=utf-8",
     ".css": "text/css; charset=utf-8",
     ".svg": "image/svg+xml",
+    ".png": "image/png",
 }
 DIALOG_TITLES = {
     "dest": "Choose where to save the files",
     "root": "Select your CompuTax folder",
 }
 MAX_BODY = 1_000_000
-HEARTBEAT_TIMEOUT = 600
+KEEPALIVE_SECONDS = 15
 
 
 class ApiError(Exception):
@@ -56,7 +62,6 @@ class AppState:
         self.root: Path | None = None
         self.index: dict[str, Client] = {}
         self.names_done = threading.Event()
-        self.last_heartbeat: float | None = None
         self.copied_dirs: set[str] = set()
         self._generation = 0
         self.root_hint = str(root) if root is not None else None
@@ -115,10 +120,6 @@ class AppState:
                 "clients": [c.to_json() for c in sorted_clients(self.index)],
             }
 
-    def touch(self) -> None:
-        """Record that the browser page is still open."""
-        self.last_heartbeat = time.monotonic()
-
 
 class AppServer(ThreadingHTTPServer):
     """HTTP server that carries the app state and session token."""
@@ -130,6 +131,7 @@ class AppServer(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", port), Handler)
         self.state = state
         self.token = token or secrets.token_urlsafe(24)
+        self.presence = Presence()
 
     @property
     def port(self) -> int:
@@ -167,9 +169,13 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             self._send_json(403, {"error": "Forbidden host."})
             return
-        path = urlsplit(self.path).path
+        url = urlsplit(self.path)
+        path = url.path
         try:
-            if method == "GET" and path in ("/", "/index.html"):
+            if method == "GET" and path == "/api/events":
+                self._check_token(parse_qs(url.query).get("t", [""])[0])
+                self._events()
+            elif method == "GET" and path in ("/", "/index.html"):
                 self._send_static("index.html")
             elif method == "GET" and path.startswith("/static/"):
                 self._send_static(path.removeprefix("/static/"))
@@ -186,11 +192,37 @@ class Handler(BaseHTTPRequestHandler):
         port = self.server.port
         return self.headers.get("Host", "") in (f"127.0.0.1:{port}", f"localhost:{port}")
 
-    def _check_token(self) -> None:
-        """Reject API requests without the session token."""
-        given = self.headers.get("X-Session-Token", "")
+    def _check_token(self, given: str | None = None) -> None:
+        """Reject API requests without the session token (header, or ``given`` for event streams)."""
+        if given is None:
+            given = self.headers.get("X-Session-Token", "")
         if not hmac.compare_digest(given.encode(), self.server.token.encode()):
-            raise ApiError(401, "Missing or wrong session token. Reopen the app from its console window.")
+            raise ApiError(401, "This page is from an earlier run of the app. Open the app again.")
+
+    def _events(self) -> None:
+        """Hold a server-sent-events stream open for as long as the page is open."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        presence = self.server.presence
+        presence.opened()
+        try:
+            self.wfile.write(b"retry: 1000\ndata: hello\n\n")
+            self.wfile.flush()
+            sock = self.connection
+            while True:
+                readable, _, _ = select.select([sock], [], [], KEEPALIVE_SECONDS)
+                if readable and not sock.recv(1024):
+                    break  # the browser closed the connection
+                if not readable:
+                    self.wfile.write(b": keepalive\n\n")
+                    self.wfile.flush()
+        except OSError:
+            pass
+        finally:
+            presence.closed()
+            self.close_connection = True
 
     def _body(self) -> dict:
         """Parse the JSON request body."""
@@ -259,8 +291,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._copy(self._body())
         if route == ("POST", "/api/open"):
             return self._open(self._body())
-        if route == ("POST", "/api/heartbeat"):
-            state.touch()
+        if route == ("GET", "/api/ping"):
             return {"ok": True}
         if route == ("POST", "/api/quit"):
             threading.Thread(target=self.server.shutdown, daemon=True).start()
@@ -318,8 +349,6 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(501, str(exc)) from None
         except RuntimeError as exc:
             raise ApiError(500, str(exc)) from None
-        finally:
-            state.touch()
         return {"path": path}
 
     def _copy(self, body: dict) -> dict:
@@ -353,20 +382,52 @@ class Handler(BaseHTTPRequestHandler):
         return {"ok": True}
 
 
-def start_watchdog(server: AppServer, timeout: float = HEARTBEAT_TIMEOUT) -> threading.Thread:
-    """Stop the server once the page has stopped sending heartbeats for ``timeout`` seconds.
+class Presence:
+    """Counts open pages (event streams) and when the count last reached zero."""
 
-    The watchdog only starts counting after the first heartbeat, and never fires
-    while a folder dialog is open.
+    def __init__(self) -> None:
+        """Start with no pages connected."""
+        self._lock = threading.Lock()
+        self.count = 0
+        self.ever_connected = False
+        self.started = time.monotonic()
+        self.empty_since = self.started
+
+    def opened(self) -> None:
+        """Record a page connecting."""
+        with self._lock:
+            self.count += 1
+            self.ever_connected = True
+
+    def closed(self) -> None:
+        """Record a page disconnecting."""
+        with self._lock:
+            self.count -= 1
+            if self.count == 0:
+                self.empty_since = time.monotonic()
+
+    def should_exit(self, grace: float, startup: float) -> bool:
+        """Return True if no page is open and the grace (or startup) period has passed."""
+        with self._lock:
+            if self.count:
+                return False
+            limit = grace if self.ever_connected else startup
+            return time.monotonic() - self.empty_since > limit
+
+
+def start_auto_exit(server: AppServer, grace: float = 4.0, startup: float = 90.0) -> threading.Thread:
+    """Stop the server once no page has been open for ``grace`` seconds.
+
+    If no page ever connects (for example, the browser failed to open), the
+    server stops after ``startup`` seconds. It never stops while a folder dialog
+    is open.
     """
 
     def watch() -> None:
-        """Poll the last heartbeat time and shut down when it is too old."""
-        state = server.state
+        """Poll the open-page count and shut the server down when it stays at zero."""
         while True:
-            time.sleep(5)
-            last = state.last_heartbeat
-            if last is not None and not state.dialog.is_open and time.monotonic() - last > timeout:
+            time.sleep(0.5)
+            if not server.state.dialog.is_open and server.presence.should_exit(grace, startup):
                 server.shutdown()
                 return
 

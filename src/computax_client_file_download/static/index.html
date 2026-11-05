@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CompuTax file downloader</title>
+<title>ITR Fetch</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <main class="card">
 
-  <div id="stopped" class="banner bad" hidden>The app has stopped. Start it again to keep working, then you can close this tab.</div>
+  <div id="stopped" class="banner bad" hidden>ITR Fetch has stopped. Open it again to keep working; you can close this tab.</div>
 
   <!-- One-time setup: where is the CompuTax folder? -->
   <section id="setup" hidden>
@@ -33,7 +34,7 @@
   <!-- Main form -->
   <section id="form" hidden>
     <header class="app-head">
-      <h1>CompuTax file downloader</h1>
+      <h1 class="brand"><img src="/static/favicon.svg" alt="" width="26" height="26">ITR Fetch</h1>
       <div class="head-links">
         <span class="muted" id="source-path" title=""></span>
         <button type="button" class="link" id="change-root">change</button>

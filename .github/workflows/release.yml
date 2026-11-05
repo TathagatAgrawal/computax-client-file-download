@@ -11,30 +11,30 @@ jobs:
   build:
     strategy:
       matrix:
-        include:
-          - os: windows-latest
-            binary: computax-downloader-windows
-          - os: macos-latest
-            binary: computax-downloader-macos-arm64
+        os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
       - run: uv run pytest -q
-      - name: Build one-file executable
-        env:
-          BINARY_NAME: ${{ matrix.binary }}
-        run: uv run pyinstaller --noconfirm --distpath dist --workpath build packaging/computax-downloader.spec
-      - name: Zip the macOS binary (keeps the executable permission)
+      - name: Build app
+        run: uv run pyinstaller --noconfirm --distpath dist --workpath build packaging/itr-fetch.spec
+      - name: Package Windows exe
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir release
+          cp "dist/ITR Fetch.exe" release/ITR-Fetch-Windows.exe
+      - name: Package macOS app (zip keeps the bundle intact)
         if: runner.os == 'macOS'
-        run: ditto -c -k --keepParent dist/${{ matrix.binary }} dist/${{ matrix.binary }}.zip
+        run: |
+          mkdir release
+          ditto -c -k --keepParent "dist/ITR Fetch.app" release/ITR-Fetch-macOS.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.binary }}
-          path: |
-            dist/*.exe
-            dist/*.zip
+          name: ${{ runner.os }}
+          path: release/*
 
   release:
     needs: build
@@ -47,4 +47,4 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" assets/* --repo "${{ github.repository }}" --title "${{ github.ref_name }}" --generate-notes
+        run: gh release create "${{ github.ref_name }}" assets/* --repo "${{ github.repository }}" --title "ITR Fetch ${{ github.ref_name }}" --generate-notes

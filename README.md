@@ -1,22 +1,22 @@
-# CompuTax Client File Downloader
+# ITR Fetch
 
-A local web app that copies a client's `ITRV_<id>.pdf` and `Computation_<id>_<year>_<n>.pdf` files out of a CompuTax data folder, for the years you pick, into one folder per client: `<destination>/<ID>/`. Files whose names don't include the year get it appended, for example `ITRV_109B_2021.pdf`. It runs on Windows and macOS (Apple Silicon) and needs nothing installed.
+ITR Fetch copies a client's `ITRV_<id>.pdf` and `Computation_<id>_<year>_<n>.pdf` files out of a CompuTax data folder, for the years you pick, into one folder per client: `<destination>/<ID>/`. Files whose names don't include the year get it appended, for example `ITRV_109B_2021.pdf`. Files already in the destination are never overwritten. It runs on Windows and macOS (Apple Silicon) and needs nothing installed.
 
 The design is in [docs/plan.html](docs/plan.html).
 
 ## Using it
 
 1. Download the file for your computer from the [Releases](../../releases) page:
-   - Windows: `computax-downloader-windows.exe`
-   - Mac (M1 or later): `computax-downloader-macos-arm64.zip`, then double-click the zip to extract it.
-2. Run it:
+   - Windows: `ITR-Fetch-Windows.exe`
+   - Mac (M1 or later): `ITR-Fetch-macOS.zip`. Double-click it to get **ITR Fetch.app**, and drag that into Applications.
+2. Open it:
    - Windows: double-click the `.exe`. If SmartScreen warns about an unknown app, choose **More info → Run anyway**.
-   - Mac: right-click the file and choose **Open**, then **Open** again. This is needed the first time only, because the app is not signed by Apple.
-3. A small terminal window opens and the app opens in your browser. Keep the terminal window open while you use the app; closing it quits the app.
-4. The first time, choose your `CompuTax` folder (the one containing `2019`, `2020`, …). The app remembers it.
+   - Mac: the first time, macOS blocks it because it isn't signed by Apple. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to ITR Fetch. After that it opens normally.
+3. ITR Fetch opens in your browser. There is no other window: it runs in the background and quits on its own a few seconds after you close its browser tab. Opening it again while it's running just opens another tab.
+4. The first time, choose your `CompuTax` folder (the one containing `2019`, `2020`, …). ITR Fetch remembers it.
 5. Search for a client by ID or name, pick the years, choose where to save, and click **Copy files**.
 
-The app only listens on `127.0.0.1`, never changes anything inside the CompuTax folder, and saves nothing except the CompuTax folder location (in `%APPDATA%\computax-downloader\settings.json` on Windows, or `~/Library/Application Support/computax-downloader/settings.json` on macOS).
+ITR Fetch only listens on `127.0.0.1` and never changes anything inside the CompuTax folder. The only thing it saves is the CompuTax folder location, in `%APPDATA%\computax-downloader\settings.json` on Windows or `~/Library/Application Support/computax-downloader/settings.json` on macOS. If it fails to start, the reason is written to `error.log` in the same folder.
 
 ## Development
 
@@ -24,23 +24,25 @@ Requires [uv](https://docs.astral.sh/uv/).
 
 ```sh
 uv sync
-uv run computax-client-file-download            # start the app and open the browser
-uv run computax-client-file-download --root /path/to/CompuTax --no-browser --port 8765
-uv run pytest                                   # Python tests
-node --test tests/fuzzy.test.mjs                # fuzzy-search tests
+uv run itr-fetch                                   # start and open the browser; quits when the tab closes
+uv run itr-fetch --root /path/to/CompuTax --no-browser --port 8765   # keeps running until Ctrl+C
+uv run pytest                                      # Python tests
+node --test tests/fuzzy.test.mjs                   # fuzzy-search tests
 ```
 
-Build a one-file executable for the current OS:
+Build the app for the current OS (`dist/ITR Fetch.exe` on Windows, `dist/ITR Fetch.app` on macOS):
 
 ```sh
-uv run pyinstaller --noconfirm packaging/computax-downloader.spec
+uv run pyinstaller --noconfirm packaging/itr-fetch.spec
 ```
+
+The icon source is `packaging/icon/icon.svg`. After changing it, regenerate the `.icns`, `.ico` and favicon on a Mac with Chrome installed: `python3 packaging/icon/build_icons.py`.
 
 ## Releasing
 
-Push a version tag. GitHub Actions builds the Windows and macOS executables and attaches them to a new release:
+Push a version tag. GitHub Actions builds the Windows and macOS apps and attaches them to a new release:
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.2
+git push origin v0.1.2
 ```
