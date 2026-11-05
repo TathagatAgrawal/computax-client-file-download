@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ITR Fetch — WhatsApp sending plan</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e2e2de;
+    --accent: #2f5bd3; --accent-soft: #e8eefc; --ok: #1f8a4c; --ok-soft: #e6f4ec;
+    --warn: #b26a00; --warn-soft: #fdf3e2; --bad: #c0392b; --bad-soft: #fbeae8;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 30px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  h2 { font-size: 22px; margin: 56px 0 12px; padding-top: 16px; border-top: 1px solid var(--line); letter-spacing: -0.01em; }
+  h3 { font-size: 17px; margin: 28px 0 8px; }
+  p, li { max-width: 78ch; }
+  code { font-family: var(--mono); font-size: 0.88em; background: #efefec; padding: 1px 5px; border-radius: 4px; }
+  pre { font-family: var(--mono); font-size: 13px; background: #1e1f24; color: #e6e6e6; padding: 14px 16px; border-radius: 8px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  nav.toc { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 20px; columns: 2; font-size: 14px; }
+  nav.toc a { color: var(--accent); text-decoration: none; display: block; padding: 2px 0; }
+  table { border-collapse: collapse; width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: 14px; margin: 12px 0; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f0f0ed; font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; background: #ececea; color: var(--muted); font-weight: 600; }
+  .tag.rec { background: var(--ok-soft); color: var(--ok); }
+
+  /* Architecture diagram */
+  .arch { display: grid; grid-template-columns: 1fr 70px 1.3fr 70px 1fr; align-items: center; gap: 0; margin: 20px 0; }
+  .box { background: var(--panel); border: 1.5px solid var(--line); border-radius: 10px; padding: 14px 16px; font-size: 13.5px; }
+  .box h4 { margin: 0 0 6px; font-size: 14px; }
+  .box ul { margin: 0; padding-left: 18px; }
+  .box.core { border-color: var(--accent); }
+  .arrow { text-align: center; color: var(--muted); font-size: 12px; line-height: 1.3; }
+  .arrow b { display: block; font-size: 22px; color: var(--accent); }
+
+  /* UI mockups */
+  .mock-wrap { background: #dcdcd8; border-radius: 12px; padding: 18px; margin: 16px 0 8px; }
+  .win { background: var(--panel); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.12); overflow: hidden; max-width: 720px; margin: 0 auto; }
+  .win-bar { background: #ececea; padding: 8px 12px; display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+  .win-bar i { width: 11px; height: 11px; border-radius: 50%; background: #d0d0cc; display: inline-block; }
+  .win-bar span { margin-left: 10px; background: #fff; border-radius: 6px; padding: 2px 10px; flex: 1; font-family: var(--mono); font-size: 11px; }
+  .app { padding: 22px 26px 26px; }
+  .app-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
+  .app-head h5 { font-size: 18px; margin: 0; }
+  .app-head small { color: var(--muted); font-size: 12px; }
+  .app-head small a { color: var(--accent); }
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+  .field .hint { color: var(--muted); font-size: 12px; font-weight: 400; }
+  .input { border: 1.5px solid #cfcfca; border-radius: 8px; padding: 8px 12px; font-size: 14px; background: #fff; display: flex; justify-content: space-between; align-items: center; }
+  .input.focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .input .ph { color: #a0a0a0; }
+  .dropdown { border: 1px solid var(--line); border-radius: 8px; margin-top: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.08); font-size: 13.5px; overflow: hidden; }
+  .dropdown div { padding: 6px 12px; display: flex; justify-content: space-between; }
+  .dropdown div.sel { background: var(--accent-soft); }
+  .dropdown mark { background: none; color: var(--accent); font-weight: 700; }
+  .dropdown small { color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1.5px solid #cfcfca; border-radius: 99px; padding: 3px 12px; font-size: 13px; background: #fff; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.off { color: #b5b5b0; border-style: dashed; }
+  .row { display: flex; gap: 8px; align-items: center; font-size: 13px; margin-top: 8px; color: var(--muted); }
+  .mini { border: 1.5px solid #cfcfca; border-radius: 6px; padding: 2px 10px; background: #fff; color: var(--ink); }
+  .btn { display: inline-block; border-radius: 8px; padding: 8px 16px; font-weight: 600; font-size: 14px; border: 1.5px solid #cfcfca; background: #fff; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.sm { padding: 4px 10px; font-size: 12.5px; }
+  .actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .summary { font-size: 13px; color: var(--muted); }
+  .res { width: 100%; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; }
+  .res td, .res th { padding: 6px 10px; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .miss { color: var(--bad); font-weight: 600; }
+  .wn { color: var(--warn); font-weight: 600; }
+  .modal-bg { background: rgba(0,0,0,.25); padding: 26px; }
+  .modal { background: #fff; border-radius: 10px; max-width: 520px; margin: 0 auto; padding: 18px 20px; box-shadow: 0 10px 40px rgba(0,0,0,.2); font-size: 13.5px; }
+  .crumbs { font-family: var(--mono); font-size: 12px; background: #f3f3f0; padding: 6px 10px; border-radius: 6px; margin: 8px 0; }
+  .shortcuts { display: flex; gap: 6px; margin-bottom: 8px; }
+  .dirlist { border: 1px solid var(--line); border-radius: 8px; max-height: 180px; overflow: hidden; }
+  .dirlist div { padding: 5px 12px; border-bottom: 1px solid #f0f0ed; }
+  .dirlist div.sel { background: var(--accent-soft); }
+  .caption { text-align: center; color: var(--muted); font-size: 13px; margin: 6px 0 24px; }
+  .banner-ok { background: var(--ok-soft); color: var(--ok); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>ITR Fetch — sending files on WhatsApp</h1>
+<p class="sub">Research and plan, 5 Nov 2026. Nothing has been built yet. Prices and limits were checked against Meta's documentation where possible; figures from third-party sources are marked.</p>
+
+<nav class="toc">
+  <a href="#summary">1. Summary &amp; recommendation</a>
+  <a href="#how">2. How WhatsApp's API works</a>
+  <a href="#setup">3. One-time setup</a>
+  <a href="#fit">4. Fitting it into a self-contained app</a>
+  <a href="#flow">5. Sending flow &amp; API calls</a>
+  <a href="#ui">6. UI design</a>
+  <a href="#pricing">7. Pricing</a>
+  <a href="#risks">8. Rules, limits &amp; risks</a>
+  <a href="#alternatives">9. Alternatives considered</a>
+  <a href="#milestones">10. Milestones</a>
+  <a href="#decisions">11. Decisions for you</a>
+  <a href="#sources">Sources</a>
+</nav>
+
+<!-- ================================================================== -->
+<h2 id="summary">1. Summary &amp; recommendation</h2>
+<p>Use Meta's official <b>WhatsApp Cloud API</b> directly, with no middleman. ITR Fetch calls Meta's API over HTTPS from your computer, using only Python's standard library, so nothing new needs installing. Each PDF is sent as one <b>utility template message</b> with the PDF attached in the message header, which is allowed even when the client hasn't messaged you recently.</p>
+<ul>
+  <li><b>Phone numbers are already in your data.</b> All 412 clients that have an ITR JSON file (<code>FiledJson</code>) have a <code>MobileNo</code> in it, all with country code 91. The app pre-fills that number, and you can edit it before sending.</li>
+  <li><b>Cost is tiny.</b> A utility message to an Indian number costs about ₹0.115 + 18% GST ≈ <b>₹0.14 per PDF</b> (third-party figure; confirm on Meta's rate card). Sending 6 PDFs to one client is about ₹0.81. The API itself is free.</li>
+  <li><b>Setup is the main effort.</b> You need a Meta Business portfolio, a phone number registered on WhatsApp's business platform, a payment method, an access token, and one approved message template. It is done once, mostly in Meta's web dashboards, and template approval can take up to 24 hours.</li>
+  <li><b>Main limitation:</b> the app can confirm that WhatsApp <i>accepted</i> a message, but not that it was <i>delivered</i> or <i>read</i>. Delivery reports only arrive via webhooks, which need a public internet address that a desktop app doesn't have (see <a href="#fit">section 4</a> and <a href="#decisions">decision 5</a>).</li>
+</ul>
+
+<!-- ================================================================== -->
+<h2 id="how">2. How WhatsApp's API works</h2>
+
+<h3>The platform</h3>
+<p>The <b>WhatsApp Business Platform</b> is Meta's API for businesses. Its <b>Cloud API</b> is hosted by Meta: you send HTTPS requests to <code>graph.facebook.com</code> with an access token, and Meta delivers the messages. The older self-hosted “On-Premises API” is retired, so the Cloud API is the only official route. Businesses can use it directly or through a reseller (a “Business Solution Provider” such as Twilio, Gupshup, Interakt or AiSensy), which adds its own fees.</p>
+
+<h3>When you may message someone</h3>
+<table>
+  <tr><th>Message type</th><th>When allowed</th><th>What it can contain</th></tr>
+  <tr><td><b>Template message</b> (marketing, utility, authentication)</td><td>Any time, as long as the recipient has opted in to hear from you.</td><td>Pre-approved wording with variables. The header can be a <b>document (PDF)</b>, image, video or text.</td></tr>
+  <tr><td><b>Free-form (“service”) message</b></td><td>Only within 24 hours of the client last messaging you (the “customer service window”).</td><td>Any text or media, including documents.</td></tr>
+</table>
+<p>Clients usually won't have messaged the firm in the last 24 hours, so sending files has to use a template. A template with a <b>document header</b> carries exactly one file, so <b>each PDF is one message</b>. An example of what the client sees:</p>
+<div class="mock-wrap"><div class="win" style="max-width:380px">
+  <div class="app" style="background:#e7ded5;padding:16px">
+    <div style="background:#fff;border-radius:10px;padding:8px;max-width:300px;font-size:13.5px;box-shadow:0 1px 1px rgba(0,0,0,.1)">
+      <div style="background:#f2f2f2;border-radius:6px;padding:10px;display:flex;gap:10px;align-items:center;margin-bottom:6px">
+        <span style="background:#e2483d;color:#fff;font-size:10px;font-weight:700;padding:6px 5px;border-radius:3px">PDF</span>
+        <span>ITRV_109B_2024.pdf<br><small style="color:#888">1 page · 82 kB</small></span>
+      </div>
+      Dear RAKESH SHARMA, please find attached your ITR-V acknowledgement for Assessment Year 2024.<br><br>– Sharma &amp; Associates
+      <div style="text-align:right;color:#999;font-size:11px">11:42</div>
+    </div>
+  </div>
+</div></div>
+<p class="caption">Illustrative. The wording is fixed by the approved template; the client name, document type, year and firm name are variables.</p>
+
+<h3>Template categories</h3>
+<p>Meta classifies each template as <b>marketing</b>, <b>utility</b> or <b>authentication</b>, and the price depends on the category. Utility means a message about a specific transaction or account the customer is already involved in, which fits sending a client their own tax documents. Meta reviews the template and may reclassify it as marketing if the wording looks promotional, so the template must be plain and transactional.</p>
+
+<h3>Media rules (from Meta's docs)</h3>
+<ul>
+  <li>Documents can be PDF, Word, Excel, PowerPoint or text files, <b>up to 100 MB</b>. ITR-V and Computation PDFs are far smaller.</li>
+  <li>Files are uploaded with <code>POST /&lt;phone-number-id&gt;/media</code>, which returns a media ID. The message then refers to that ID. Uploaded media and IDs expire after 30 days.</li>
+  <li>The file name the client sees can be set separately, so they would see <code>ITRV_109B_2024.pdf</code>.</li>
+</ul>
+
+<!-- ================================================================== -->
+<h2 id="setup">3. One-time setup (done by the firm, outside ITR Fetch)</h2>
+<ol>
+  <li><b>Meta Business portfolio.</b> Create one at business.facebook.com, or use an existing one, under the firm's legal name.</li>
+  <li><b>Meta developer app.</b> At developers.facebook.com, create an app of type “Business” and add the <b>WhatsApp</b> product. This creates a <b>WhatsApp Business Account (WABA)</b> and a free test number that can message up to 5 verified numbers. That is enough to try ITR Fetch before going live.</li>
+  <li><b>Phone number.</b> Add the number the firm will send from, verify it by SMS or a call, and set the display name, which Meta reviews. Two options (<a href="#decisions">decision 1</a>):
+    <ul>
+      <li><b>A dedicated new number</b> (simplest). It must not be in use on any WhatsApp app.</li>
+      <li><b>The firm's existing WhatsApp Business app number</b>, using Meta's “coexistence” feature, which lets the app and the API share one number. Onboarding is done through Meta's “Embedded Signup” flow, which is usually provided by a Meta partner. Third-party sources disagree on how chat history syncs between the two.</li>
+    </ul>
+  </li>
+  <li><b>Payment method.</b> Add a card in Meta Business settings → WhatsApp accounts → Payment settings. Meta is moving Indian businesses to <b>INR billing</b>; it must be done by 31 Dec 2026 or messages stop on 1 Jan 2027.</li>
+  <li><b>Permanent access token.</b> In Business settings → System users, create a system user, give it the WhatsApp account, and generate a token with the <code>whatsapp_business_messaging</code> and <code>whatsapp_business_management</code> permissions. The token shown on the developer dashboard expires in 24 hours and is only for testing.</li>
+  <li><b>Message template.</b> In WhatsApp Manager → Message templates, create a <b>Utility</b> template with a <b>Document</b> header, for example:
+    <pre><code>Name:     itr_document            Category: Utility      Language: English
+Header:   Document  (sample PDF uploaded for review)
+Body:     Dear {{1}}, please find attached your {{2}} for Assessment Year {{3}}.
+Footer:   {{firm name, fixed text}}</code></pre>
+    Review can take up to 24 hours. ITR Fetch can also create the template via the API, but a document-header template needs its sample PDF uploaded through a separate “resumable upload” API. The dashboard is simpler for a one-off.</li>
+  <li><b>Business verification</b> (recommended, not required to start). New accounts can message <b>250 different people per 24 hours</b>. Verifying the business, by uploading registration documents, raises this to 2,000, after which it grows automatically with good message quality.</li>
+  <li><b>Enter the details into ITR Fetch</b>: phone number ID, WhatsApp Business Account ID, access token and template name. The app tests the connection and the template status (<a href="#ui">screen W1</a>).</li>
+</ol>
+
+<!-- ================================================================== -->
+<h2 id="fit">4. Fitting it into a self-contained app</h2>
+
+<div class="arch">
+  <div class="box">
+    <h4>Browser (UI)</h4>
+    <ul>
+      <li>WhatsApp settings screen</li>
+      <li>“Send on WhatsApp” panel with confirmation</li>
+      <li>Per-file send results</li>
+    </ul>
+  </div>
+  <div class="arrow"><b>⇄</b>local API<br>127.0.0.1</div>
+  <div class="box core">
+    <h4>ITR Fetch (Python stdlib)</h4>
+    <ul>
+      <li><b>whatsapp.py</b>: Graph API client (urllib, hand-built multipart upload)</li>
+      <li><b>secrets.py</b>: token in the OS keychain</li>
+      <li><b>names.py</b>: also reads <code>MobileNo</code> from FiledJson</li>
+      <li>Send log in memory only (this run)</li>
+    </ul>
+  </div>
+  <div class="arrow"><b>→</b>HTTPS<br>outbound only</div>
+  <div class="box">
+    <h4>Meta Cloud API</h4>
+    <ul>
+      <li><code>graph.facebook.com</code></li>
+      <li>/media upload</li>
+      <li>/messages send</li>
+      <li>template status</li>
+    </ul>
+  </div>
+</div>
+
+<table>
+  <tr><th>Concern</th><th>How it is handled</th></tr>
+  <tr><td><b>No dependencies</b></td><td>The Graph API is plain HTTPS and JSON, so <code>urllib</code> is enough. The file upload needs a <code>multipart/form-data</code> body, which is about 20 lines to build by hand. I checked that the bundled Python reaches <code>graph.facebook.com</code> with valid certificates on macOS. Windows uses the system certificate store; this will be checked in the first Windows build.</td></tr>
+  <tr><td><b>Internet</b></td><td>Copying files still works offline. Only sending needs internet, and if Meta can't be reached the app says so clearly.</td></tr>
+  <tr><td><b>Storing the token</b> (a secret that can send messages as the firm)</td><td>Stored in the OS's secure credential store: the macOS Keychain (via the built-in <code>security</code> command) or Windows Credential Manager (via <code>ctypes</code>). It is never written to <code>settings.json</code> and never sent to the browser page. The non-secret IDs (phone number ID, account ID, template name, firm name) go in <code>settings.json</code> next to the CompuTax path. This extends the earlier “only the CompuTax path is saved” rule, but it is needed so the setup isn't repeated (<a href="#decisions">decision 4</a>).</td></tr>
+  <tr><td><b>Delivery status</b></td><td>Meta reports <i>sent / delivered / read / failed</i> only by calling a <b>webhook</b>, a public HTTPS address. A desktop app behind a home or office router has none, and the API has no endpoint to poll for status. So:
+    <ul>
+      <li>The app shows <b>“Accepted by WhatsApp”</b> once Meta returns a message ID. Problems Meta catches straight away, such as a bad token, an unapproved template or an invalid number format, appear as errors at once.</li>
+      <li>Failures Meta finds later are <b>not visible</b> to the app, for example a number that isn't on WhatsApp. The client simply won't receive it. You can see these in WhatsApp Manager's insights.</li>
+      <li>A later add-on could be a tiny free cloud relay, such as a Cloudflare Worker, that receives webhooks and lets ITR Fetch fetch the statuses (<a href="#decisions">decision 5</a>).</li>
+    </ul>
+  </td></tr>
+  <tr><td><b>Phone numbers</b></td><td>Read from <code>MobileNo</code> and <code>CountryCodeMobile</code> in the client's latest <code>FiledJson</code>, the same file the name comes from, then shown and editable before sending. Numbers are normalised to <code>91XXXXXXXXXX</code>. Edited numbers are not saved, in keeping with the no-persistence rule.</td></tr>
+  <tr><td><b>Privacy</b></td><td>Only the selected PDFs and the client's name, document type and year leave the computer, sent directly to Meta. Nothing goes to any other server.</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<h2 id="flow">5. Sending flow &amp; API calls</h2>
+<ol>
+  <li>The user selects a client and years as today, then clicks <b>Send on WhatsApp…</b> next to <b>Copy files</b>.</li>
+  <li>A panel shows the number (pre-filled from FiledJson), the client's name as it will appear in the message, and a checklist of the PDFs that will be sent, one row per file and year.</li>
+  <li><b>Send</b> opens a confirmation summary (“Send 4 PDFs to +91 98xxx xxx21 (RAKESH SHARMA)?”). This is required because a sent message can't be recalled, and a wrong number would expose a client's tax documents to someone else.</li>
+  <li>For each PDF, one at a time:
+<pre><code>POST https://graph.facebook.com/v{N}/{PHONE_NUMBER_ID}/media
+     multipart: file=@ITRV_109B.pdf, type=application/pdf, messaging_product=whatsapp
+  → {"id": "MEDIA_ID"}
+
+POST https://graph.facebook.com/v{N}/{PHONE_NUMBER_ID}/messages
+{
+  "messaging_product": "whatsapp",
+  "to": "91XXXXXXXXXX",
+  "type": "template",
+  "template": {
+    "name": "itr_document",
+    "language": {"code": "en"},
+    "components": [
+      {"type": "header", "parameters": [
+        {"type": "document", "document": {"id": "MEDIA_ID", "filename": "ITRV_109B_2024.pdf"}}]},
+      {"type": "body", "parameters": [
+        {"type": "text", "text": "RAKESH SHARMA"},
+        {"type": "text", "text": "ITR-V acknowledgement"},
+        {"type": "text", "text": "2024"}]}
+    ]
+  }
+}
+  → {"messages": [{"id": "wamid.…"}]}</code></pre>
+  </li>
+  <li>Results are shown per file: <span class="ok">✓ Accepted</span> or <span class="miss">✗ the reason</span>, with a <b>Retry failed</b> button.</li>
+  <li><b>No double-sending:</b> the app remembers, for this run only, which files went to which number. Sending the same file to the same number again requires ticking an extra confirmation.</li>
+</ol>
+<p class="callout">The sent filename uses the same year-appended name as copying (<code>ITRV_109B_2024.pdf</code>), so the client can tell years apart in their chat. The <code>{{2}}</code> document type is “ITR-V acknowledgement” for ITRV files and “tax computation” for Computation files (wording to be confirmed).</p>
+
+<!-- ================================================================== -->
+<h2 id="ui">6. UI design</h2>
+<p>Names, numbers and IDs in the mockups are placeholders, not real client data.</p>
+
+<h3>Screen W1 — WhatsApp settings (header link “WhatsApp”)</h3>
+<div class="mock-wrap"><div class="win">
+  <div class="win-bar"><i></i><i></i><i></i><span>127.0.0.1:51734</span></div>
+  <div class="app">
+    <div class="app-head"><h5>WhatsApp settings</h5><small><a>Setup guide</a></small></div>
+    <div class="field"><label>Phone number ID</label><div class="input"><span>1098765432101234</span></div></div>
+    <div class="field"><label>WhatsApp Business Account ID</label><div class="input"><span>2233445566778899</span></div></div>
+    <div class="field"><label>Access token <span class="hint">— stored in the macOS Keychain / Windows Credential Manager</span></label><div class="input"><span>••••••••••••••••••••  (saved)</span><span style="color:var(--accent);font-size:12px">replace</span></div></div>
+    <div class="field"><label>Template name</label><div class="input"><span>itr_document</span></div></div>
+    <div class="field"><label>Firm name <span class="hint">— shown in the message</span></label><div class="input"><span>Sharma &amp; Associates</span></div></div>
+    <div class="banner-ok">✓ Connected as “Sharma &amp; Associates” (+91 98xxx xxx00) · quality: green · limit: 250 recipients/day · template itr_document: APPROVED (Utility)</div>
+    <div class="actions"><span class="btn">Test connection</span><span class="btn primary">Save</span></div>
+  </div>
+</div></div>
+<p class="caption">“Test connection” checks the token, the phone number and the template in one go. It warns if the template is not approved, has been reclassified as Marketing, or has the wrong header type.</p>
+
+<h3>Screen W2 — send panel (main form, after a client and years are chosen)</h3>
+<div class="mock-wrap"><div class="win">
+  <div class="win-bar"><i></i><i></i><i></i><span>127.0.0.1:51734</span></div>
+  <div class="app">
+    <div class="app-head"><h5>Send on WhatsApp</h5><small>109B — RAKESH SHARMA</small></div>
+    <div class="field">
+      <label>WhatsApp number <span class="hint">— from the 2024 ITR; edit if needed</span></label>
+      <div class="input"><span>+91 98xxx xxx21</span></div>
+    </div>
+    <div class="field">
+      <label>Files to send <span class="hint">— one WhatsApp message each</span></label>
+      <table class="res">
+        <tr><td>☑</td><td>ITRV_109B_2020.pdf</td><td style="color:var(--muted)">ITR-V acknowledgement · 2020</td></tr>
+        <tr><td>☑</td><td>Computation_109B_2020_1.pdf</td><td style="color:var(--muted)">tax computation · 2020</td></tr>
+        <tr><td>☑</td><td>ITRV_109B_2021.pdf</td><td style="color:var(--muted)">ITR-V acknowledgement · 2021</td></tr>
+        <tr><td>☑</td><td>Computation_109B_2021_1.pdf</td><td style="color:var(--muted)">tax computation · 2021</td></tr>
+      </table>
+    </div>
+    <div class="actions"><span class="summary">4 messages · about ₹0.54 incl. GST</span><span><span class="btn">Cancel</span> <span class="btn primary">Send 4 files…</span></span></div>
+  </div>
+</div></div>
+<p class="caption">“Send 4 files…” opens a final confirmation that repeats the number and the client name. The cost estimate uses the utility rate configured in settings.</p>
+
+<h3>Screen W3 — send results</h3>
+<div class="mock-wrap"><div class="win">
+  <div class="win-bar"><i></i><i></i><i></i><span>127.0.0.1:51734</span></div>
+  <div class="app">
+    <div class="banner-ok" style="background:var(--warn-soft);color:var(--warn)">⚠ 3 of 4 files accepted by WhatsApp for +91 98xxx xxx21</div>
+    <table class="res">
+      <tr><td class="ok">✓ Accepted</td><td>ITRV_109B_2020.pdf</td></tr>
+      <tr><td class="ok">✓ Accepted</td><td>Computation_109B_2020_1.pdf</td></tr>
+      <tr><td class="ok">✓ Accepted</td><td>ITRV_109B_2021.pdf</td></tr>
+      <tr><td class="miss">✗ Failed</td><td>Computation_109B_2021_1.pdf — network error, nothing was sent</td></tr>
+    </table>
+    <p style="font-size:12.5px;color:var(--muted)">“Accepted” means WhatsApp took the message. Delivery to the client's phone isn't reported back to this app.</p>
+    <div class="actions"><span class="btn">Retry failed</span><span class="btn primary">Done</span></div>
+  </div>
+</div></div>
+
+<!-- ================================================================== -->
+<h2 id="pricing">7. Pricing</h2>
+<h3>How Meta charges (from Meta's pricing docs)</h3>
+<ul>
+  <li><b>Per delivered message</b>, by category and recipient country. This model replaced per-conversation pricing on 1 July 2025. Messages from clients to you are free.</li>
+  <li><b>Template messages</b> (marketing, utility, authentication) are always charged, including utility templates inside the 24-hour window since <b>1 Oct 2026</b>.</li>
+  <li><b>Service messages</b> (free-form replies in the 24-hour window): the first <b>1,000 per phone number per month are free</b> since 1 Oct 2026; after that they are charged.</li>
+  <li><b>Volume discounts</b> apply to utility and authentication messages once monthly volume is high. They are irrelevant at a CA firm's scale.</li>
+  <li>The <b>API itself is free</b>; there is no monthly fee from Meta. Prices change only on 1 Jan, 1 Apr, 1 Jul or 1 Oct, with notice.</li>
+</ul>
+
+<h3>India rates (third-party sources quoting Meta's card; confirm on Meta's official rate card)</h3>
+<table>
+  <tr><th>Category</th><th class="num">Per message</th><th class="num">With 18% GST</th></tr>
+  <tr><td>Utility (what ITR Fetch would use)</td><td class="num">₹0.1150</td><td class="num">≈ ₹0.136</td></tr>
+  <tr><td>Authentication</td><td class="num">₹0.1150</td><td class="num">≈ ₹0.136</td></tr>
+  <tr><td>Marketing (if Meta reclassified the template)</td><td class="num">₹0.8631</td><td class="num">≈ ₹1.02</td></tr>
+</table>
+
+<h3>Worked examples (one message per PDF)</h3>
+<table>
+  <tr><th>Scenario</th><th class="num">Messages</th><th class="num">Utility, incl. GST</th><th class="num">If reclassified marketing</th></tr>
+  <tr><td>One client, one year (ITR-V + Computation)</td><td class="num">2</td><td class="num">₹0.27</td><td class="num">₹2.04</td></tr>
+  <tr><td>One client, 5 years</td><td class="num">10</td><td class="num">₹1.36</td><td class="num">₹10.18</td></tr>
+  <tr><td>Filing season: 300 clients × 2 PDFs</td><td class="num">600</td><td class="num">≈ ₹81</td><td class="num">≈ ₹611</td></tr>
+</table>
+<p>Going through a reseller instead typically adds a monthly subscription plus a per-message markup on top of Meta's rates. That buys an easier onboarding UI and support, but not lower message prices.</p>
+
+<!-- ================================================================== -->
+<h2 id="risks">8. Rules, limits &amp; risks</h2>
+<table>
+  <tr><th>Topic</th><th>What it means for ITR Fetch</th></tr>
+  <tr><td><b>Opt-in</b></td><td>WhatsApp's business policy requires that recipients have agreed to receive WhatsApp messages from the business. The firm should record each client's consent, for example a line in the engagement letter. ITR Fetch can't check this.</td></tr>
+  <tr><td><b>Messaging limit</b></td><td>New accounts can message 250 different numbers outside the 24-hour window per rolling 24 hours, across the whole business portfolio. That is enough for daily use; verify the business before a busy filing season to raise it to 2,000.</td></tr>
+  <tr><td><b>Quality rating</b></td><td>If many clients block or report the number, Meta lowers its quality rating and can restrict it. Sending only expected documents to consenting clients keeps this green. The settings screen shows the rating.</td></tr>
+  <tr><td><b>Template reclassification</b></td><td>If Meta judges the template promotional, it becomes marketing and costs about 7× more. Keep the wording strictly transactional. The app warns if the template's category changes.</td></tr>
+  <tr><td><b>Wrong recipient</b></td><td>The biggest real risk is sending a tax return to the wrong person. Mitigations: the number pre-fills from the client's own ITR, a confirmation repeats the number and name, and a number edited by hand gets an extra “I've checked this number” tick.</td></tr>
+  <tr><td><b>No delivery confirmation</b></td><td>Covered in <a href="#fit">section 4</a>. The app is honest that “accepted” is not “delivered”.</td></tr>
+  <tr><td><b>Token leakage</b></td><td>Anyone with the token can message as the firm. It is kept in the OS keychain and can be revoked any time in Meta Business settings → System users.</td></tr>
+  <tr><td><b>API version churn</b></td><td>Graph API versions are retired about 2 years after release. The version is one constant in the code and needs bumping in a future release.</td></tr>
+  <tr><td><b>Billing deadline</b></td><td>Indian businesses must move to INR billing by 31 Dec 2026, or Meta stops delivering messages on 1 Jan 2027.</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<h2 id="alternatives">9. Alternatives considered</h2>
+<table>
+  <tr><th>Option</th><th>Pros</th><th>Cons</th><th>Verdict</th></tr>
+  <tr><td><b>Meta Cloud API directly</b></td><td>Official; lowest cost (Meta's rates only); no extra accounts; works from the app with no dependencies.</td><td>Setup in Meta's dashboards; no delivery status without a webhook.</td><td><span class="tag rec">Recommended</span></td></tr>
+  <tr><td>Reseller (Business Solution Provider)</td><td>Guided onboarding and support; some offer coexistence onboarding and delivery reports without webhooks.</td><td>Monthly fee and per-message markup; every provider's API is different; adds a third party handling tax documents.</td><td>Fallback if the direct setup proves too fiddly.</td></tr>
+  <tr><td>Unofficial WhatsApp Web automation (e.g. Baileys, whatsapp-web.js)</td><td>No Meta setup; uses an ordinary WhatsApp number.</td><td>Against WhatsApp's terms, so the number can be banned; breaks when WhatsApp changes; needs Node or a headless browser bundled.</td><td>Rejected.</td></tr>
+  <tr><td>“Open chat” shortcut, no API</td><td>Zero setup and free: the app opens <code>wa.me/91…</code> in WhatsApp Desktop and opens the folder of copied files, and the user drags them in.</td><td>Manual attach step; nothing automated.</td><td>Worth adding anyway as a no-setup option (<a href="#decisions">decision 6</a>).</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<h2 id="milestones">10. Milestones</h2>
+<ol>
+  <li><b>Prototype against Meta's test number:</b> a <code>whatsapp.py</code> client (upload, send template, read phone and template status) and a command-line check that sends one PDF to your own phone. This confirms the document-header payload and the certificate handling on the bundled Python.</li>
+  <li><b>Phone numbers:</b> extend <code>names.py</code> to read <code>MobileNo</code> and normalise it, with tests.</li>
+  <li><b>Secrets and settings:</b> Keychain / Credential Manager storage, and the settings screen with “Test connection”.</li>
+  <li><b>Send flow:</b> the send panel, confirmation, per-file results, retry, and the duplicate-send guard.</li>
+  <li><b>Hardening:</b> error-message mapping for common API errors (expired token, template not approved, rate limited, number invalid), then a manual run on both Windows and macOS builds.</li>
+  <li>Optional later: a webhook relay for delivery status.</li>
+</ol>
+
+<!-- ================================================================== -->
+<h2 id="decisions">11. Decisions for you</h2>
+<table>
+  <tr><th>#</th><th>Question</th><th>Recommendation</th></tr>
+  <tr><td>1</td><td>Which number sends the messages: a new dedicated number, or the firm's existing WhatsApp Business app number (coexistence)?</td><td>A <b>dedicated number</b> for the first version, because it is the simplest direct-to-Meta setup. Coexistence keeps one familiar number but usually requires onboarding through a Meta partner.</td></tr>
+  <tr><td>2</td><td>Meta directly or through a reseller?</td><td><b>Directly.</b> It is cheapest and keeps tax documents between the firm and Meta only.</td></tr>
+  <tr><td>3</td><td>Template wording and language. English only, or also Hindi? What is the firm name?</td><td>Start with one English utility template, as drafted in section 3.</td></tr>
+  <tr><td>4</td><td>Store the WhatsApp settings (IDs in <code>settings.json</code>, token in the OS keychain), relaxing “only the CompuTax path is saved”?</td><td><b>Yes</b>; otherwise the token has to be pasted on every launch.</td></tr>
+  <tr><td>5</td><td>Is “accepted by WhatsApp” enough, or do you need delivered/read confirmation?</td><td>Accept it for the first version. Add a small webhook relay later only if missed deliveries turn out to matter.</td></tr>
+  <tr><td>6</td><td>Also add the free “Open WhatsApp chat” shortcut, for use without any Meta setup?</td><td><b>Yes</b>. It is cheap to build and useful before the API setup is approved.</td></tr>
+  <tr><td>7</td><td>Should sending also copy the files to the destination folder, or be completely separate?</td><td>Separate buttons on the same form. The send panel reads the PDFs straight from CompuTax.</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<h2 id="sources">Sources</h2>
+<ul>
+  <li>Meta — <a href="https://developers.facebook.com/docs/whatsapp/pricing">WhatsApp Business Platform pricing</a> (per-message model, 1 Oct 2026 changes, 1,000 free service messages, INR billing deadline)</li>
+  <li>Meta — <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media">Cloud API media reference</a> (document types, 100 MB limit, 30-day media expiry)</li>
+  <li>Meta — <a href="https://developers.facebook.com/docs/whatsapp/messaging-limits">Messaging limits</a> (250 → 2,000 → 10,000 → 100,000 → unlimited, per business portfolio)</li>
+  <li>Meta — <a href="https://developers.facebook.com/docs/whatsapp/business-management-api/message-templates">Message templates</a> (creation via API, media-header samples via resumable upload, review up to 24 h)</li>
+  <li>India rate figures (third-party, quoting Meta's card): <a href="https://myoperator.com/blog/whatsapp-business-api-pricing-india-2026">MyOperator</a>, <a href="https://chatmaxima.com/whatsapp-api-pricing/india/">ChatMaxima</a>, <a href="https://whautomate.com/whatsapp-business-api-pricing-india">Whautomate</a>, <a href="https://instantdm.com/blog/whatsapp-business-api-pricing-2026-india-october-update">InstantDM</a></li>
+  <li>Coexistence (third-party): <a href="https://www.ycloud.com/blog/whatsapp-business-app-coexistence-meta-update">YCloud</a>, <a href="https://www.leadsquared.com/learn/marketing/whatsapp-coexistence/">LeadSquared</a>, <a href="https://converzap.com/en/blog/whatsapp-coexistence-vs-cloud-api/">Converzap</a></li>
+  <li>Setup and tokens (third-party): <a href="https://theautomate.ai/blog/whatsapp-cloud-api/">theautomate.ai</a>, <a href="https://omnifox.io/blog/whatsapp-cloud-api-setup-guide-2026">Omnifox</a></li>
+  <li>Template document-header size limits (third-party, conflicting): <a href="https://support.myoperator.com/portal/en/kb/articles/is-there-any-size-limit-on-the-media-files-attached-in-whatsapp-template-messages-22-9-2025">MyOperator support</a>, <a href="https://developer.exotel.com/docs/whatsapp-support/media-messages">Exotel</a></li>
+</ul>
+<p class="caption" style="text-align:left">Measured locally: client mobile numbers in <code>FiledJson</code> (412 of 412 clients, all country code 91), and the bundled Python reaching <code>graph.facebook.com</code> over HTTPS.</p>
+
+</main>
+</body>
+</html>
