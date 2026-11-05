@@ -145,7 +145,7 @@ def test_copy_and_open_rules(make_app, computax: Path, tmp_path: Path) -> None:
     assert client.call("POST", "/api/copy", {"id": "1", "years": [2024], "dest": "relative/path"})[0] == 400
     status, report = client.call("POST", "/api/copy", {"id": "1", "years": [2024, 2021], "dest": str(dest)})
     assert status == 200 and report["totals"]["copied"] == 4
-    assert (dest / "1/2021/ITRV_1.pdf").exists()
+    assert (dest / "1/ITRV_1_2021.pdf").exists()
     assert client.call("POST", "/api/open", {"path": str(tmp_path)})[0] == 400
 
 

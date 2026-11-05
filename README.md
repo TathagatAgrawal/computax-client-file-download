@@ -1,6 +1,6 @@
 # CompuTax Client File Downloader
 
-A local web app that copies a client's `ITRV_<id>.pdf` and `Computation_<id>_<year>_<n>.pdf` files out of a CompuTax data folder, for the years you pick, into `<destination>/<ID>/<year>/`. It runs on Windows and macOS (Apple Silicon) and needs nothing installed.
+A local web app that copies a client's `ITRV_<id>.pdf` and `Computation_<id>_<year>_<n>.pdf` files out of a CompuTax data folder, for the years you pick, into one folder per client: `<destination>/<ID>/`. Files whose names don't include the year get it appended, for example `ITRV_109B_2021.pdf`. It runs on Windows and macOS (Apple Silicon) and needs nothing installed.
 
 The design is in [docs/plan.html](docs/plan.html).
 

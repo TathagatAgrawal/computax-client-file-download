@@ -439,8 +439,8 @@ $("copy-btn").addEventListener("click", async () => {
 
 const STATUS_TEXT = {
   copied: "✓",
-  replaced: "✓ (replaced older copy)",
-  skipped: "= already there",
+  exists: "= already there, left unchanged",
+  blocked: "⚠ not saved (folder in the way)",
   error: "✗ failed",
 };
 
@@ -461,18 +461,19 @@ function fileCell(items) {
 function renderResults(report) {
   state.lastReport = report;
   const t = report.totals;
-  const written = t.copied + t.replaced;
+  const written = t.copied;
   const missing = report.years.filter((y) => !y.itrv.length || !y.computation.length).length;
   const who = report.name ? `${report.id} — ${report.name}` : report.id;
   const banner = $("results-banner");
   const extras = [];
-  if (t.skipped) extras.push(`${t.skipped} already there`);
+  if (t.exists) extras.push(`${t.exists} already there, left unchanged`);
+  if (t.blocked) extras.push(`${t.blocked} not saved`);
   if (t.error) extras.push(`${t.error} failed`);
   if (missing) extras.push(`${missing} year${missing === 1 ? "" : "s"} with missing files`);
   banner.textContent =
-    `${written && !missing && !t.error ? "✓" : "⚠"} Copied ${written} file${written === 1 ? "" : "s"} for ${who} to ${report.dest_root}` +
+    `${written && !missing && !t.error && !t.blocked ? "✓" : "⚠"} Copied ${written} file${written === 1 ? "" : "s"} for ${who} to ${report.dest_root}` +
     (extras.length ? ` (${extras.join(", ")})` : "");
-  banner.className = "banner" + (t.error ? " bad" : missing || !written ? " warn" : "");
+  banner.className = "banner" + (t.error ? " bad" : missing || t.blocked || !written ? " warn" : "");
   const body = $("results-body");
   body.replaceChildren();
   for (const y of report.years) {
@@ -481,7 +482,7 @@ function renderResults(report) {
       body.append(el("tr", {}, el("td"), el("td", { colspan: "2", class: "st-warning" }, `⚠ ${w}`)));
     }
   }
-  $("open-folder").disabled = !written && !t.skipped;
+  $("open-folder").disabled = !written && !t.exists;
   showSection("results");
 }
 

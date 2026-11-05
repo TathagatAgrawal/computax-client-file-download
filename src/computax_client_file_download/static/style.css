@@ -153,7 +153,8 @@ table.results { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.results th, table.results td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 table.results th { color: var(--muted); font-weight: 600; }
 table.results td div { overflow-wrap: anywhere; }
-.st-copied, .st-replaced { color: var(--ok); }
-.st-skipped { color: var(--muted); }
+.st-copied { color: var(--ok); }
+.st-exists { color: var(--muted); }
+.st-blocked { color: var(--warn); }
 .st-error, .st-missing { color: var(--bad); font-weight: 600; }
 .st-warning { color: var(--warn); }

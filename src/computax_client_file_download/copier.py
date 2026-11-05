@@ -1,32 +1,62 @@
-"""Copy a client's ITRV and Computation PDFs into ``<dest>/<ID>/<year>/``."""
+"""Copy a client's ITRV and Computation PDFs into ``<dest>/<ID>/``.
 
+All years go into the one client folder, so the year is appended to any filename
+that doesn't already contain it: ``ITRV_1.pdf`` from 2024 becomes
+``ITRV_1_2024.pdf``, while ``Computation_1_2024_1.pdf`` keeps its name.
+
+Existing files in the destination are never overwritten; only missing files are
+written.
+"""
+
+import re
 import shutil
 from pathlib import Path
 
 from .scanner import Client, resolve_year
 
 
-def _same_file(src: Path, dst: Path) -> bool:
-    """Return True if ``dst`` already holds an identical copy of ``src``."""
-    try:
-        a, b = src.stat(), dst.stat()
-    except OSError:
-        return False
-    return a.st_size == b.st_size and int(a.st_mtime) == int(b.st_mtime)
+def target_name(src_name: str, client_id: str, year: int) -> str:
+    """Return the saved filename: ``src_name`` with ``_<year>`` added unless already present.
+
+    The client ID part of the name is ignored when looking for the year, so a
+    client whose ID looks like a year still gets the suffix.
+    """
+    stem, dot, ext = src_name.rpartition(".")
+    if not dot:
+        stem, ext = src_name, ""
+    rest = re.sub(rf"_{re.escape(client_id)}(?=_|$)", "", stem, count=1, flags=re.IGNORECASE)
+    if re.search(rf"(^|_){year}(_|$)", rest):
+        return src_name
+    return f"{stem}_{year}{dot}{ext}"
 
 
-def _copy_one(src: Path, target_dir: Path) -> dict:
-    """Copy one file and return ``{name, status[, error]}`` describing the outcome."""
-    dst = target_dir / src.name
-    if _same_file(src, dst):
-        return {"name": src.name, "status": "skipped"}
-    existed = dst.exists()
+def _copy_one(src: Path, target_dir: Path, client_id: str, year: int) -> dict:
+    """Copy one file unless something already has its name.
+
+    Returns ``{name, source, status[, error]}``. Status is ``copied``, ``exists``
+    (a file is already there and was left alone), ``blocked`` (a folder has the
+    file's name) or ``error``.
+    """
+    name = target_name(src.name, client_id, year)
+    dst = target_dir / name
+    result = {"name": name, "source": src.name}
+    if dst.is_dir():
+        return {**result, "status": "blocked"}
+    if dst.exists():
+        return {**result, "status": "exists"}
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
     except OSError as exc:
-        return {"name": src.name, "status": "error", "error": exc.strerror or str(exc)}
-    return {"name": src.name, "status": "replaced" if existed else "copied"}
+        return {**result, "status": "error", "error": exc.strerror or str(exc)}
+    try:
+        with src.open("rb") as fsrc, dst.open("xb") as fdst:
+            shutil.copyfileobj(fsrc, fdst)
+        shutil.copystat(src, dst)
+    except FileExistsError:
+        return {**result, "status": "exists"}
+    except OSError as exc:
+        return {**result, "status": "error", "error": exc.strerror or str(exc)}
+    return {**result, "status": "copied"}
 
 
 def _inside(path: Path, root: Path) -> bool:
@@ -56,11 +86,16 @@ def copy_client_files(root: Path, client: Client, years: list[int], dest: Path) 
         for kind, paths in (("itrv", found.itrv), ("computation", found.computation)):
             for src in paths:
                 if _inside(src, root):
-                    entry[kind].append(_copy_one(src, dest_root / str(year)))
+                    item = _copy_one(src, dest_root, client.id, year)
+                    entry[kind].append(item)
+                    if item["status"] == "blocked":
+                        entry["warnings"].append(
+                            f"{item['name']} was not saved because a folder with that name is already in {dest_root}."
+                        )
                 else:
                     entry["warnings"].append(f"{src.name} points outside the CompuTax folder; not copied.")
         report.append(entry)
-    counts = {"copied": 0, "replaced": 0, "skipped": 0, "error": 0}
+    counts = {"copied": 0, "exists": 0, "blocked": 0, "error": 0}
     for entry in report:
         for item in entry["itrv"] + entry["computation"]:
             counts[item["status"]] += 1

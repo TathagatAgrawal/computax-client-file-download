@@ -187,7 +187,7 @@ ITR.pdf   479341208_CWAxxxxx7L_A3.pdf ...</code></pre>
   <li>Show every client found in a dropdown, as <b>ID + name</b>. Fuzzy search matches <b>either the ID or the name</b>.</li>
   <li>After a client is chosen, show the years that client exists in. The user can select separate years, a range, or both.</li>
   <li>Let the user pick the destination folder using the <b>native OS folder dialog</b>.</li>
-  <li>Copy <code>ITRV_&lt;id&gt;.pdf</code> (plus <code>_Revised</code>) and every <code>Computation_&lt;id&gt;_&lt;year&gt;_&lt;n&gt;.pdf</code> for each selected year into <code>&lt;destination&gt;/&lt;ID&gt;/&lt;year&gt;/</code>.</li>
+  <li>Copy <code>ITRV_&lt;id&gt;.pdf</code> (plus <code>_Revised</code>) and every <code>Computation_&lt;id&gt;_&lt;year&gt;_&lt;n&gt;.pdf</code> for each selected year into <code>&lt;destination&gt;/&lt;ID&gt;/</code>, appending <code>_&lt;year&gt;</code> to filenames that don't already contain the year.</li>
   <li>Show a per-year report (copied, missing, warnings) with an <b>Open folder</b> button.</li>
 </ol>
 <h3>Non-functional</h3>
@@ -284,11 +284,14 @@ FiledJson   ^FiledJson_{ID}_\d+\.json$        (names only)</code></pre>
 
 <h3>Output layout</h3>
 <pre><code>&lt;destination&gt;/
-  264A/
-    2021/  ITRV_264A.pdf   Computation_264A_2021_1.pdf
-    2022/  ITRV_264A.pdf   Computation_264A_2022_1.pdf
-    2023/  ...</code></pre>
-<p>Original filenames are kept. The ITRV filename contains no year, so year subfolders prevent files from different years overwriting each other. Year folders are named exactly like the CompuTax year folders. If a file with the same name already exists in the destination, the app skips it when its size and modification time are identical, and otherwise overwrites it. Each case appears in the report.</p>
+  109B/
+    ITRV_109B_2021.pdf
+    ITRV_109B_2022.pdf
+    ITRV_109B_Revised_2022.pdf
+    Computation_109B_2021_1.pdf
+    Computation_109B_2022_1.pdf
+    Computation_109B_2022_2.pdf</code></pre>
+<p>All PDFs for a client go directly into one folder named after the client ID. Because the ITRV filename has no year, <code>_&lt;year&gt;</code> is appended before <code>.pdf</code> to every file whose name doesn't already contain the year, so files from different years can't overwrite each other. Computation files already contain the year and keep their original names. The check ignores the client ID part of the name, so a client whose ID looks like a year still gets the suffix. Existing files are never overwritten: if a file with the same name is already in the destination, it is left unchanged and the report says “already there”. Only missing files are written. If a <i>folder</i> has the same name as a file, that file is not saved and the report shows a warning; the rest of the batch continues.</p>
 
 <!-- ================================================================== -->
 <h2 id="api">6. Local HTTP API</h2>
@@ -397,8 +400,8 @@ FiledJson   ^FiledJson_{ID}_\d+\.json$        (names only)</code></pre>
     <table class="res">
       <tr><th>Year</th><th>ITR-V</th><th>Computation</th></tr>
       <tr><td>2019</td><td class="miss">✗ not found</td><td class="wn">⚠ not found — folder has Computation_274_2019_1.pdf (different ID)</td></tr>
-      <tr><td>2021</td><td class="ok">✓ ITRV_109B.pdf</td><td class="ok">✓ Computation_109B_2021_1.pdf</td></tr>
-      <tr><td>2022</td><td class="ok">✓ ITRV_109B.pdf<br>✓ ITRV_109B_Revised.pdf</td><td class="ok">✓ Computation_109B_2022_1.pdf<br>✓ Computation_109B_2022_2.pdf</td></tr>
+      <tr><td>2021</td><td class="ok">✓ ITRV_109B_2021.pdf</td><td class="ok">✓ Computation_109B_2021_1.pdf</td></tr>
+      <tr><td>2022</td><td class="ok">✓ ITRV_109B_2022.pdf<br>✓ ITRV_109B_Revised_2022.pdf</td><td class="ok">✓ Computation_109B_2022_1.pdf<br>✓ Computation_109B_2022_2.pdf</td></tr>
     </table>
     <div class="actions" style="margin-top:14px"><span class="btn">Open folder</span><span class="btn primary">Start over</span></div>
   </div>
@@ -494,7 +497,7 @@ FiledJson   ^FiledJson_{ID}_\d+\.json$        (names only)</code></pre>
 <table>
   <tr><th>#</th><th>Topic</th><th>Decision</th></tr>
   <tr><td>1</td><td>Remembering the CompuTax path</td><td>Saved in <code>settings.json</code> in the OS's standard settings folder. This is the only persisted data.</td></tr>
-  <tr><td>2</td><td>Output layout</td><td><code>&lt;destination&gt;/&lt;ID&gt;/&lt;year&gt;/</code> with original filenames. The year folder uses the plain year (per decision 5) instead of the earlier “AY” prefix.</td></tr>
+  <tr><td>2</td><td>Output layout</td><td>Revised after the first release: all files go flat into <code>&lt;destination&gt;/&lt;ID&gt;/</code>, with <code>_&lt;year&gt;</code> appended to filenames that don't already contain the year (ITRV files). Computation files keep their names.</td></tr>
   <tr><td>3</td><td>Revised ITR-V</td><td>Copy both <code>ITRV_&lt;id&gt;.pdf</code> and <code>ITRV_&lt;id&gt;_Revised.pdf</code>.</td></tr>
   <tr><td>4</td><td>Client names</td><td>Shown next to the ID and searchable. Search works by ID or by name.</td></tr>
   <tr><td>5</td><td>Year labels</td><td>Same as the CompuTax folder names (“2024”).</td></tr>
