@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - name: Python tests
+        run: uv run pytest -q
+      - name: Fuzzy search tests
+        run: node --test tests/
+      - name: Tk is available for the Windows folder dialog
+        if: runner.os == 'Windows'
+        run: uv run python -c "import tkinter; print(tkinter.TkVersion)"

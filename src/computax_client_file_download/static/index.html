@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompuTax file downloader</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main class="card">
+
+  <div id="stopped" class="banner bad" hidden>The app has stopped. Start it again to keep working, then you can close this tab.</div>
+
+  <!-- One-time setup: where is the CompuTax folder? -->
+  <section id="setup" hidden>
+    <h1>Where is your CompuTax folder?</h1>
+    <p class="muted">This is the folder that contains the year folders (2019, 2020, 2021 …). You only need to do this once.</p>
+    <div class="field">
+      <label for="root-input">CompuTax folder</label>
+      <div class="path-row">
+        <input id="root-input" type="text" spellcheck="false" autocomplete="off" placeholder="Choose or paste the folder path">
+        <button id="root-browse" type="button">Browse…</button>
+      </div>
+      <div class="dialog-wait" id="root-wait" hidden>Choose a folder in the dialog window… <a href="#" data-cancel-dialog>Cancel</a></div>
+      <div id="root-msg" class="msg"></div>
+    </div>
+    <div class="actions">
+      <button id="root-cancel" type="button" class="link" hidden>Back</button>
+      <button id="root-continue" type="button" class="primary" disabled>Continue</button>
+    </div>
+  </section>
+
+  <!-- Main form -->
+  <section id="form" hidden>
+    <header class="app-head">
+      <h1>CompuTax file downloader</h1>
+      <div class="head-links">
+        <span class="muted" id="source-path" title=""></span>
+        <button type="button" class="link" id="change-root">change</button>
+        <button type="button" class="link" id="rescan">rescan</button>
+        <button type="button" class="link" id="quit">quit</button>
+      </div>
+    </header>
+
+    <div class="field">
+      <label for="client-input">1. Client <span class="hint" id="client-hint"></span></label>
+      <div class="combo">
+        <input id="client-input" type="text" spellcheck="false" autocomplete="off" role="combobox"
+               aria-expanded="false" aria-controls="client-list" placeholder="Type a client ID or name">
+        <ul id="client-list" role="listbox" hidden></ul>
+      </div>
+    </div>
+
+    <div class="field" id="years-field" hidden>
+      <label>2. Years <span class="hint">click to toggle · greyed = no ITRV/Computation found</span></label>
+      <div id="year-chips" class="chips"></div>
+      <div class="range-row">
+        Range:
+        <select id="range-from" aria-label="From year"></select>
+        to
+        <select id="range-to" aria-label="To year"></select>
+        <button type="button" class="small" id="range-add">Select range</button>
+        <button type="button" class="small" id="years-all">All</button>
+        <button type="button" class="small" id="years-none">None</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="dest-input">3. Save to</label>
+      <div class="path-row">
+        <input id="dest-input" type="text" spellcheck="false" autocomplete="off">
+        <button id="dest-browse" type="button">Browse…</button>
+      </div>
+      <div class="dialog-wait" id="dest-wait" hidden>Choose a folder in the dialog window… <a href="#" data-cancel-dialog>Cancel</a></div>
+    </div>
+
+    <div id="form-error" class="msg error"></div>
+    <div class="actions">
+      <span class="muted" id="copy-summary"></span>
+      <button id="copy-btn" type="button" class="primary" disabled>Copy files</button>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section id="results" hidden>
+    <div id="results-banner" class="banner"></div>
+    <table class="results">
+      <thead><tr><th>Year</th><th>ITR-V</th><th>Computation</th></tr></thead>
+      <tbody id="results-body"></tbody>
+    </table>
+    <div class="actions">
+      <button id="open-folder" type="button">Open folder</button>
+      <button id="start-over" type="button" class="primary">Start over</button>
+    </div>
+  </section>
+
+</main>
+<script src="/static/fuzzy.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

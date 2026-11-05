@@ -95,14 +95,14 @@
 <main>
 
 <h1>CompuTax Client File Downloader</h1>
-<p class="sub">Plan, system design and UI design — draft for review, 5 Nov 2026. Nothing beyond the project scaffold has been built yet.</p>
+<p class="sub">Plan, system design and UI design — revision 2, 5 Nov 2026. Decisions from review are applied (see <a href="#decisions">section 13</a>). Nothing beyond the project scaffold has been built yet.</p>
 
 <nav class="toc">
   <a href="#summary">1. Summary</a>
   <a href="#data">2. What the CompuTax folder looks like</a>
   <a href="#reqs">3. Requirements</a>
   <a href="#arch">4. System design</a>
-  <a href="#rules">5. File-matching rules</a>
+  <a href="#rules">5. File-matching &amp; name rules</a>
   <a href="#api">6. Local HTTP API</a>
   <a href="#ui">7. UI design</a>
   <a href="#dist">8. Zero-dependency distribution</a>
@@ -110,17 +110,17 @@
   <a href="#security">10. Safety &amp; edge cases</a>
   <a href="#testing">11. Testing</a>
   <a href="#milestones">12. Milestones</a>
-  <a href="#questions">13. Decisions for you</a>
+  <a href="#decisions">13. Decisions</a>
 </nav>
 
 <!-- ================================================================== -->
 <h2 id="summary">1. Summary</h2>
-<p>A small local web app. The user double-clicks one executable (Windows, macOS or Linux). It starts a web server on <code>127.0.0.1</code> and opens the browser. On first launch, it asks once for the location of the <code>CompuTax</code> folder. After that, the user picks a client ID from a fuzzy-search dropdown, picks the years (a range, separate years, or both) and picks a destination folder. They click <b>Copy files</b>, and the app copies each year's <code>ITRV_&lt;id&gt;.pdf</code> and <code>Computation_&lt;id&gt;_&lt;year&gt;_&lt;n&gt;.pdf</code> into the destination. It then shows what was found and what was missing.</p>
+<p>A small local web app. The user double-clicks one executable on Windows or macOS. It starts a web server on <code>127.0.0.1</code> and opens the browser. On first launch, it asks once for the location of the <code>CompuTax</code> folder and remembers it. After that, the user searches for a client <b>by ID or by name</b>, picks the years (a range, separate years, or both) and chooses a destination folder in the <b>operating system's own folder dialog</b>. They click <b>Copy files</b>, and the app copies each year's <code>ITRV_&lt;id&gt;.pdf</code> and <code>Computation_&lt;id&gt;_&lt;year&gt;_&lt;n&gt;.pdf</code> into the destination. It then shows what was found and what was missing.</p>
 <ul>
-  <li><b>Backend:</b> Python 3.12, <b>standard library only</b> (<code>http.server</code>, <code>pathlib</code>, <code>shutil</code>, <code>json</code>, <code>webbrowser</code>). No third-party runtime packages.</li>
+  <li><b>Backend:</b> Python 3.12, <b>standard library only</b> (<code>http.server</code>, <code>pathlib</code>, <code>shutil</code>, <code>json</code>, <code>webbrowser</code>, <code>tkinter</code> for the Windows folder dialog). No third-party runtime packages.</li>
   <li><b>Frontend:</b> one HTML page with plain JavaScript and CSS, bundled inside the app. No framework, no CDN, and it works offline.</li>
-  <li><b>Shipping:</b> PyInstaller builds a single-file executable per OS in GitHub Actions. The user installs nothing, not even Python.</li>
-  <li><b>State:</b> no login, no database and no history. The only thing saved is the CompuTax folder path, so the app asks for it just once (see <a href="#questions">decision 1</a>).</li>
+  <li><b>Shipping:</b> PyInstaller builds a single-file executable for Windows and macOS in GitHub Actions. The user installs nothing, not even Python.</li>
+  <li><b>State:</b> no login, no database and no history. The only thing saved is the CompuTax folder path, in a one-key <code>settings.json</code> in the OS's standard settings folder. Client names are held in memory only and never written to disk.</li>
 </ul>
 
 <!-- ================================================================== -->
@@ -149,18 +149,32 @@
 Computation_1_2024_1.pdf      <span style="color:#7fd17f">&lt;-- wanted</span>
 ComputationCompare_2024_1.pdf <span style="color:#e08080">&lt;-- NOT wanted (different report)</span>
 ITRV_1.pdf                    <span style="color:#7fd17f">&lt;-- wanted</span>
-ITR.pdf   FiledJson_1_1.json  479341208_CWAxxxxx7L_A3.pdf ...</code></pre>
+FiledJson_1_1.json            <span style="color:#7fb4f0">&lt;-- source of the client's name</span>
+ITR.pdf   479341208_CWAxxxxx7L_A3.pdf ...</code></pre>
+
+<h3>Where client names come from</h3>
+<p>Names are not in any filename. They are inside <code>FiledJson_&lt;id&gt;_&lt;n&gt;.json</code> (the ITR JSON as filed), in an <code>AssesseeName</code> object such as <code>{"FirstName": "…", "MiddleName": "…", "SurNameOrOrgName": "…"}</code>. Its location depends on the ITR form:</p>
+<table>
+  <tr><th>ITR form</th><th>Path inside the JSON</th><th class="num">Files</th></tr>
+  <tr><td>ITR-3</td><td><code>ITR → ITR3 → PartA_GEN1 → PersonalInfo → AssesseeName</code></td><td class="num">591</td></tr>
+  <tr><td>ITR-1</td><td><code>ITR → ITR1 → PersonalInfo → AssesseeName</code></td><td class="num">507</td></tr>
+  <tr><td>ITR-2</td><td><code>ITR → ITR2 → PartA_GEN1 → PersonalInfo → AssesseeName</code></td><td class="num">341</td></tr>
+  <tr><td>ITR-4</td><td><code>ITR → ITR4 → PersonalInfo → AssesseeName</code></td><td class="num">180</td></tr>
+  <tr><td>ITR-6 (companies)</td><td><code>ITR → ITR6 → PartA_GEN1 → OrgFirmInfo → AssesseeName</code></td><td class="num">27</td></tr>
+  <tr><td>ITR-5 (firms)</td><td><code>ITR → ITR5 → PartA_GEN1 → OrgFirmInfo → AssesseeName</code></td><td class="num">23</td></tr>
+</table>
+<p><b>Coverage:</b> 413 of the 514 clients (about 80%) have at least one <code>FiledJson</code> file. The other clients appear in the dropdown by ID only.</p>
 
 <h3>Quirks the design must handle</h3>
 <table>
   <tr><th>Observation</th><th>Example</th><th>How the app handles it</th></tr>
-  <tr><td>The year folder is the <b>Assessment Year</b>. <code>FiledJson</code> in <code>2024/1</code> says <code>AssessmentYear: 2024</code>.</td><td><code>2024</code> = AY 2024-25</td><td>Label years as “AY 2024” in the UI, optionally with “(FY 2023-24)”.</td></tr>
+  <tr><td>The year folder is the Assessment Year. <code>FiledJson</code> in <code>2024/1</code> says <code>AssessmentYear: 2024</code>.</td><td><code>2024</code> = AY 2024-25</td><td>Years are shown exactly as the folder names (“2024”), with no AY/FY relabelling.</td></tr>
   <tr><td>The case of a client folder differs across years. The filename case can also differ from the folder's case.</td><td><code>2020/7d/ITRV_7D.pdf</code>, <code>2022/124e/Computation_124E_2022_1.pdf</code>, <code>2020/25A/ITRV_25a.pdf</code></td><td>Client IDs are matched case-insensitively. The dropdown shows one entry per ID, using the most common spelling.</td></tr>
   <tr><td>Some folders have more than one Computation file.</td><td><code>Computation_160_2022_1.pdf</code> + <code>_2.pdf</code>, and one <code>_3</code></td><td>Copy <b>all</b> <code>Computation_&lt;id&gt;_&lt;year&gt;_*.pdf</code> files. 14 folders have a <code>_2</code> file and 1 has a <code>_3</code> file.</td></tr>
-  <tr><td>Revised ITR-V files exist.</td><td><code>ITRV_160.pdf</code> + <code>ITRV_160_Revised.pdf</code> (6 cases)</td><td>Copy both by default (<a href="#questions">decision 3</a>).</td></tr>
+  <tr><td>Revised ITR-V files exist.</td><td><code>ITRV_160.pdf</code> + <code>ITRV_160_Revised.pdf</code> (6 cases)</td><td>Copy both the original and the revised file.</td></tr>
   <tr><td><code>ComputationCompare_*.pdf</code> shares the “Computation” prefix.</td><td><code>ComputationCompare_2024_1.pdf</code></td><td>Excluded. The pattern requires <code>Computation_</code> followed by the ID.</td></tr>
-  <tr><td>About 2,600 files have a trailing underscore on the extension.</td><td><code>2025/222A/222A_2025_TIS.pdf_</code></td><td>Ignored, because only names ending exactly in <code>.pdf</code> match.</td></tr>
-  <tr><td><b>A misfiled folder:</b> <code>2021/264B/</code> contains only client <b>274</b>'s files.</td><td><code>2021/264B/ITRV_274.pdf</code></td><td>Strict ID matching means 264B shows “not found” for 2021 instead of copying another client's return. The result row warns: “folder contains ITRV for a different ID (274)”.</td></tr>
+  <tr><td>About 2,600 files have a trailing underscore on the extension.</td><td><code>2025/222A/222A_2025_TIS.pdf_</code></td><td>Ignored, because only names ending exactly in <code>.pdf</code> or <code>.json</code> match.</td></tr>
+  <tr><td><b>A misfiled folder:</b> <code>2021/264B/</code> contains only client <b>274</b>'s files.</td><td><code>2021/264B/ITRV_274.pdf</code></td><td>Strict ID matching means 264B shows “not found” for 2021 instead of copying another client's return. The result row warns: “folder contains ITRV for a different ID (274)”. Name lookup also requires the <code>FiledJson</code> filename to carry the client's own ID, so 264B is not labelled with 274's name.</td></tr>
   <tr><td>Some client-years have neither file (ITR not filed, or folder still copying).</td><td><code>2024/103A/</code></td><td>Reported as missing in the results, and shown greyed out when picking years.</td></tr>
   <tr><td>The data is still being copied in.</td><td>—</td><td>A <b>Rescan</b> button rebuilds the index. Copies always re-check the live filesystem.</td></tr>
 </table>
@@ -169,16 +183,16 @@ ITR.pdf   FiledJson_1_1.json  479341208_CWAxxxxx7L_A3.pdf ...</code></pre>
 <h2 id="reqs">3. Requirements</h2>
 <h3>Functional</h3>
 <ol>
-  <li>On first launch, ask for the location of the <code>CompuTax</code> folder and check that it contains year folders. Remember it so the prompt is one-time. It can be changed later from the header.</li>
-  <li>Show every client ID found in the folder in a dropdown with fuzzy matching.</li>
-  <li>After an ID is chosen, show the years that ID exists in. The user can select separate years, a range, or both.</li>
-  <li>Let the user pick the destination folder.</li>
-  <li>Copy <code>ITRV_&lt;id&gt;.pdf</code> (plus <code>_Revised</code>) and every <code>Computation_&lt;id&gt;_&lt;year&gt;_&lt;n&gt;.pdf</code> for each selected year.</li>
+  <li>On first launch, ask for the location of the <code>CompuTax</code> folder (via the native folder dialog or a pasted path) and check that it contains year folders. Save it so the prompt is one-time. It can be changed later from the header.</li>
+  <li>Show every client found in a dropdown, as <b>ID + name</b>. Fuzzy search matches <b>either the ID or the name</b>.</li>
+  <li>After a client is chosen, show the years that client exists in. The user can select separate years, a range, or both.</li>
+  <li>Let the user pick the destination folder using the <b>native OS folder dialog</b>.</li>
+  <li>Copy <code>ITRV_&lt;id&gt;.pdf</code> (plus <code>_Revised</code>) and every <code>Computation_&lt;id&gt;_&lt;year&gt;_&lt;n&gt;.pdf</code> for each selected year into <code>&lt;destination&gt;/&lt;ID&gt;/&lt;year&gt;/</code>.</li>
   <li>Show a per-year report (copied, missing, warnings) with an <b>Open folder</b> button.</li>
 </ol>
 <h3>Non-functional</h3>
 <ul>
-  <li>Runs on Windows, macOS and Linux. The end user installs no dependencies.</li>
+  <li>Runs on Windows and macOS. The end user installs no dependencies.</li>
   <li>Local only: binds to <code>127.0.0.1</code> with no network exposure, no login and no telemetry.</li>
   <li>Never modifies or deletes anything inside <code>CompuTax</code> (read-only).</li>
   <li>Simple UI: one screen, three inputs, one button.</li>
@@ -192,8 +206,8 @@ ITR.pdf   FiledJson_1_1.json  479341208_CWAxxxxx7L_A3.pdf ...</code></pre>
     <h4>Browser (UI)</h4>
     <ul>
       <li>index.html + app.js + style.css</li>
-      <li>Fuzzy matcher (client-side)</li>
-      <li>Year picker, folder browser modal</li>
+      <li>Fuzzy matcher over ID + name (client-side)</li>
+      <li>Year picker</li>
       <li>Results table</li>
     </ul>
   </div>
@@ -203,18 +217,20 @@ ITR.pdf   FiledJson_1_1.json  479341208_CWAxxxxx7L_A3.pdf ...</code></pre>
     <ul>
       <li><b>server.py</b>: ThreadingHTTPServer, routing, token check, serves static files</li>
       <li><b>scanner.py</b>: builds the client→years index and resolves files</li>
+      <li><b>names.py</b>: reads client names from <code>FiledJson</code></li>
       <li><b>copier.py</b>: copies files and builds the per-year report</li>
-      <li><b>browse.py</b>: lists folders for the picker and opens the OS file manager</li>
+      <li><b>dialogs.py</b>: native folder dialog, open in Finder/Explorer</li>
       <li><b>settings.py</b>: stores the CompuTax path</li>
     </ul>
   </div>
-  <div class="arrow"><b>→</b>read-only<br><br><b>→</b>write</div>
+  <div class="arrow"><b>→</b>read-only<br><br><b>→</b>write<br><br><b>→</b>spawn</div>
   <div class="box">
-    <h4>Filesystem</h4>
+    <h4>OS</h4>
     <ul>
       <li><b>CompuTax/</b> &lt;year&gt;/&lt;id&gt;/ (read)</li>
       <li><b>Destination</b> folder (write)</li>
-      <li><b>settings.json</b> in the OS config dir (one key)</li>
+      <li><b>settings.json</b> in the OS settings folder (one key)</li>
+      <li><b>Native folder dialog</b> (macOS: <code>osascript</code>; Windows: Tk → Explorer dialog)</li>
     </ul>
   </div>
 </div>
@@ -223,37 +239,56 @@ ITR.pdf   FiledJson_1_1.json  479341208_CWAxxxxx7L_A3.pdf ...</code></pre>
 <ol>
   <li><b>Launch.</b> The executable finds a free port and generates a random session token. It starts the server on <code>127.0.0.1</code> and opens <code>http://127.0.0.1:&lt;port&gt;/?t=&lt;token&gt;</code> in the default browser. A small console window shows the URL and says “close this window to quit”.</li>
   <li><b>Settings.</b> The app reads <code>settings.json</code> for the saved CompuTax path. If the path is missing or no longer valid, the UI shows the one-time setup screen. A <code>--root PATH</code> command-line flag overrides the saved path.</li>
-  <li><b>Index.</b> One <code>os.scandir</code> pass over each <code>&lt;root&gt;/&lt;YYYY&gt;/</code> builds <code>{ID_UPPER: {display_id, years: {year: folder_path}}}</code>. It lists folder names only and does not read any files, so it takes milliseconds for about 2,600 folders. The index is kept in memory and rebuilt on <b>Rescan</b>.</li>
-  <li><b>Per-client detail.</b> When an ID is selected, the server lists only that client's year folders. For each year it reports which ITRV and Computation files exist, so the year chips can show availability.</li>
+  <li><b>Index.</b> One <code>os.scandir</code> pass over each <code>&lt;root&gt;/&lt;YYYY&gt;/</code> builds <code>{ID_UPPER: {display_id, years: {year: folder_path}}}</code>. It lists folder names only, so it takes milliseconds for about 2,600 folders.</li>
+  <li><b>Names.</b> A background thread then reads one <code>FiledJson</code> per client (the most recent year that has one) and adds the name to the index. This is roughly 413 small JSON reads, under a second on a local disk and a few seconds on a network share. The dropdown works by ID immediately, and names appear as soon as they are loaded. Both the ID index and the names are rebuilt on <b>Rescan</b>.</li>
+  <li><b>Per-client detail.</b> When a client is selected, the server lists only that client's year folders. For each year it reports which ITRV and Computation files exist, so the year chips can show availability.</li>
+  <li><b>Choose folder.</b> <b>Browse…</b> calls <code>/api/pick-folder</code>. The server opens the native folder dialog and waits, and the request returns the chosen path, or <code>null</code> if the user cancels.</li>
   <li><b>Copy.</b> On submit, the server re-resolves files against the live disk and copies them with <code>shutil.copy2</code>, which keeps timestamps. It returns the per-year report.</li>
-  <li><b>Quit.</b> The user clicks <b>Quit</b> in the header or closes the console window. The browser sends a heartbeat every 15 seconds. If no heartbeat arrives for about 2 minutes, the server exits by itself, so no orphan process is left behind.</li>
+  <li><b>Quit.</b> The user clicks <b>Quit</b> in the header or closes the console window. The browser sends a heartbeat every 15 seconds. If no heartbeat arrives for 10 minutes, the server exits by itself, so no orphan process is left behind. The timeout is generous because browsers slow down timers in background tabs. The heartbeat timer is paused while a folder dialog is open.</li>
 </ol>
+
+<h3>Native folder dialog</h3>
+<p>Browsers cannot reveal a real folder path to a web page, so the dialog is opened by the local Python server, not the browser. The app needs to write several files, so it uses the OS's <b>“choose folder”</b> dialog rather than a per-file “Save As” dialog, which would mean one prompt per PDF. The same dialog is used for the one-time CompuTax setup.</p>
+<table>
+  <tr><th>OS</th><th>How</th><th>What the user sees</th></tr>
+  <tr><td>macOS</td><td><code>osascript</code> runs <code>choose folder with prompt "…" default location "…"</code>. The command is addressed to the frontmost app (the browser), so the dialog opens on top of it. It is built into macOS, so nothing is bundled.</td><td>The standard Finder open panel, including sidebar, iCloud and “New Folder”. Cancelling returns <code>null</code>.</td></tr>
+  <tr><td>Windows</td><td>The server re-launches its own executable with <code>--pick-folder</code>. That child process calls <code>tkinter.filedialog.askdirectory</code> from a hidden, always-on-top window and prints the result. Tk 8.6 on Windows uses the modern Explorer folder dialog. Running it in a separate process avoids Tk threading issues inside the server.</td><td>The standard Explorer “Select Folder” dialog, including Quick access, drives, network locations and “New folder”.</td></tr>
+</table>
+<p>While the dialog is open, the page shows “Choose a folder in the dialog window…”. The path field next to <b>Browse…</b> can also be typed or pasted into directly, as a fallback.</p>
 
 <h3>Key design choices</h3>
 <table>
   <tr><th>Choice</th><th>Why</th><th>Alternatives rejected</th></tr>
-  <tr><td>Stdlib <code>http.server</code></td><td>No runtime dependencies, which keeps the PyInstaller build small (about 8–12 MB). With one local user and a handful of requests, a framework adds nothing.</td><td>Flask/FastAPI add dependencies and size with no benefit here.</td></tr>
-  <tr><td>Fuzzy matching in the browser</td><td>514 IDs is tiny. The full list is sent once, so filtering is instant on every keystroke without a server round-trip.</td><td>A server-side search endpoint adds latency for no gain.</td></tr>
-  <tr><td>In-page folder browser for the destination and CompuTax path</td><td>Works the same on every OS and is always in front of the browser. Native dialogs started from a background server process are unreliable: on macOS, tkinter must run on the main thread and the dialog often opens behind the browser.</td><td>A tkinter <code>askdirectory</code> dialog, or a plain text box only. A paste-a-path box is still offered.</td></tr>
+  <tr><td>Stdlib <code>http.server</code></td><td>No runtime dependencies, which keeps the PyInstaller build small (about 10–15 MB including Tk on Windows). With one local user and a handful of requests, a framework adds nothing.</td><td>Flask/FastAPI add dependencies and size with no benefit here.</td></tr>
+  <tr><td>Fuzzy matching in the browser</td><td>514 clients with names is about 20 KB of JSON. It is sent once, so filtering is instant on every keystroke.</td><td>A server-side search endpoint adds latency for no gain.</td></tr>
+  <tr><td>Native folder dialog opened by the server</td><td>Familiar to the user, and it returns a real path that the server can write to.</td><td>The browser's <code>showDirectoryPicker()</code> works only in Chrome/Edge and gives no path. A self-designed folder browser was replaced at your request.</td></tr>
   <tr><td>Strict, case-insensitive ID matching on filenames</td><td>The 264B/274 case shows that “take any ITRV in the folder” could hand over another client's tax return.</td><td>Loose matching.</td></tr>
-  <tr><td>PyInstaller one-file build per OS via GitHub Actions</td><td>PyInstaller cannot cross-compile, so CI runners for each OS produce the binaries.</td><td>Asking the user to install Python or uv.</td></tr>
+  <tr><td>PyInstaller one-file build per OS via GitHub Actions</td><td>PyInstaller cannot cross-compile, so a Windows runner and a macOS runner each produce their own binary.</td><td>Asking the user to install Python or uv.</td></tr>
 </table>
 
 <!-- ================================================================== -->
-<h2 id="rules">5. File-matching rules</h2>
+<h2 id="rules">5. File-matching &amp; name rules</h2>
 <p>For client <code>ID</code> and year <code>Y</code>, the client folder is the one under <code>&lt;root&gt;/Y/</code> whose name equals <code>ID</code> case-insensitively. Inside it, these case-insensitive full-name regexes apply:</p>
 <pre><code>ITRV        ^ITRV_{ID}(_Revised)?\.pdf$
-Computation ^Computation_{ID}_{Y}_\d+\.pdf$</code></pre>
+Computation ^Computation_{ID}_{Y}_\d+\.pdf$
+FiledJson   ^FiledJson_{ID}_\d+\.json$        (names only)</code></pre>
 <p><code>{ID}</code> is passed through <code>re.escape</code>. <code>ComputationCompare_*</code>, <code>*.pdf_</code> and every other file are ignored. If a pattern matches nothing but the folder contains an <code>ITRV_*.pdf</code> or <code>Computation_*.pdf</code> for a <i>different</i> ID, the report shows a warning and the file is not copied.</p>
 
+<h3>Client name</h3>
+<ul>
+  <li>The app uses the most recent year that has a matching <code>FiledJson</code>. If there are several in that year, it uses the highest <code>_n</code>.</li>
+  <li>It finds the first <code>AssesseeName</code> object by walking the JSON, so it works for every ITR form without hard-coded paths. The name is <code>FirstName MiddleName SurNameOrOrgName</code>, with empty parts dropped and spaces collapsed. Firms and companies only fill <code>SurNameOrOrgName</code>.</li>
+  <li>Files are read as <code>utf-8-sig</code>. An unreadable or malformed file is skipped, and the app tries the next older year.</li>
+  <li>If a client's name changed across years, older names are kept as hidden search aliases. Searching the old name still finds the client, but only the latest name is shown.</li>
+</ul>
+
 <h3>Output layout</h3>
-<p>Recommended layout (<a href="#questions">decision 2</a>):</p>
 <pre><code>&lt;destination&gt;/
   264A/
-    AY2021/  ITRV_264A.pdf   Computation_264A_2021_1.pdf
-    AY2022/  ITRV_264A.pdf   Computation_264A_2022_1.pdf
-    AY2023/  ...</code></pre>
-<p>Original filenames are kept. The ITRV filename contains no year, so year subfolders prevent files from different years overwriting each other. If a file with the same name already exists in the destination, the app skips it when its size and modification time are identical, and otherwise overwrites it. Each case appears in the report.</p>
+    2021/  ITRV_264A.pdf   Computation_264A_2021_1.pdf
+    2022/  ITRV_264A.pdf   Computation_264A_2022_1.pdf
+    2023/  ...</code></pre>
+<p>Original filenames are kept. The ITRV filename contains no year, so year subfolders prevent files from different years overwriting each other. Year folders are named exactly like the CompuTax year folders. If a file with the same name already exists in the destination, the app skips it when its size and modification time are identical, and otherwise overwrites it. Each case appears in the report.</p>
 
 <!-- ================================================================== -->
 <h2 id="api">6. Local HTTP API</h2>
@@ -263,19 +298,18 @@ Computation ^Computation_{ID}_{Y}_\d+\.pdf$</code></pre>
   <tr><td><code>GET /</code></td><td><code>?t=token</code></td><td>The app page. The token is passed to JS.</td></tr>
   <tr><td><code>GET /api/settings</code></td><td>—</td><td><code>{root, root_valid}</code></td></tr>
   <tr><td><code>PUT /api/settings</code></td><td><code>{root}</code></td><td>Validates (at least one <code>YYYY</code> subfolder containing client folders), saves and rebuilds the index. Returns <code>{root, years, client_count}</code> or a 400 with the reason.</td></tr>
-  <tr><td><code>GET /api/clients</code></td><td>—</td><td><code>[{id, years:[2020,…]}]</code>, sorted naturally (1, 2, 10, 103A…)</td></tr>
-  <tr><td><code>POST /api/rescan</code></td><td>—</td><td>Rebuilds the index. Returns the same shape as <code>/api/clients</code>.</td></tr>
-  <tr><td><code>GET /api/clients/{id}</code></td><td>—</td><td><code>{id, years:{2021:{itrv:[…], computation:[…], warnings:[…]}, …}}</code></td></tr>
-  <tr><td><code>GET /api/browse</code></td><td><code>?path=</code> (empty = home)</td><td><code>{path, parent, dirs:[…], shortcuts:[Home, Desktop, Documents, Downloads, drives…]}</code></td></tr>
-  <tr><td><code>POST /api/mkdir</code></td><td><code>{parent, name}</code></td><td>Creates a folder from the picker's “New folder” button.</td></tr>
+  <tr><td><code>GET /api/clients</code></td><td>—</td><td><code>{names_ready, clients:[{id, name, aliases:[…], years:[2020,…]}]}</code>, sorted naturally (1, 2, 10, 103A…). The UI fetches again once if <code>names_ready</code> is false.</td></tr>
+  <tr><td><code>POST /api/rescan</code></td><td>—</td><td>Rebuilds the index and names. Returns the same shape as <code>/api/clients</code>.</td></tr>
+  <tr><td><code>GET /api/clients/{id}</code></td><td>—</td><td><code>{id, name, years:{2021:{itrv:[…], computation:[…], warnings:[…]}, …}}</code></td></tr>
+  <tr><td><code>POST /api/pick-folder</code></td><td><code>{purpose: "dest" | "root", initial}</code></td><td>Opens the native dialog and blocks until it closes. Returns <code>{path}</code> or <code>{path: null}</code> on cancel. Only one dialog can be open at a time; a second request gets a 409.</td></tr>
   <tr><td><code>POST /api/copy</code></td><td><code>{id, years:[…], dest}</code></td><td><code>{dest_root, years:[{year, copied:[…], skipped:[…], missing:[…], warnings:[…]}], totals}</code></td></tr>
-  <tr><td><code>POST /api/open</code></td><td><code>{path}</code></td><td>Opens the folder in Finder, Explorer or the Linux file manager (<code>open</code> / <code>os.startfile</code> / <code>xdg-open</code>).</td></tr>
+  <tr><td><code>POST /api/open</code></td><td><code>{path}</code></td><td>Opens the folder in Finder or Explorer (<code>open</code> / <code>os.startfile</code>). Only paths created by the last copy are allowed.</td></tr>
   <tr><td><code>POST /api/heartbeat</code>, <code>POST /api/quit</code></td><td>—</td><td>Liveness check and shutdown.</td></tr>
 </table>
 
 <!-- ================================================================== -->
 <h2 id="ui">7. UI design</h2>
-<p>A single page with a centred card about 640px wide. It uses system fonts and follows the OS light/dark preference. Everything works with the keyboard.</p>
+<p>A single page with a centred card about 640px wide. It uses system fonts and follows the OS light/dark preference. Everything works with the keyboard. Names in the mockups are placeholders, not real client data.</p>
 
 <h3>Screen A — one-time setup (first launch only)</h3>
 <div class="mock-wrap"><div class="win">
@@ -291,7 +325,7 @@ Computation ^Computation_{ID}_{Y}_\d+\.pdf$</code></pre>
     <div class="actions"><span></span><span class="btn primary">Continue</span></div>
   </div>
 </div></div>
-<p class="caption">Validation runs as the user types or picks a folder. If the path is wrong, the message explains why, for example “this folder has no year subfolders; did you pick CompuTax/2024 instead of CompuTax?”.</p>
+<p class="caption">Browse… opens the native folder dialog. Validation runs as soon as a path is picked or typed. If the path is wrong, the message explains why, for example “this folder has no year subfolders; did you pick CompuTax/2024 instead of CompuTax?”.</p>
 
 <h3>Screen B — main form</h3>
 <div class="mock-wrap"><div class="win">
@@ -300,18 +334,24 @@ Computation ^Computation_{ID}_{Y}_\d+\.pdf$</code></pre>
     <div class="app-head"><h5>CompuTax file downloader</h5><small>Source: …/CompuTax · <a>change</a> · <a>rescan</a> · <a>quit</a></small></div>
 
     <div class="field">
-      <label>1. Client ID <span class="hint">— 514 clients · type to search</span></label>
-      <div class="input focus"><span>109b</span><span style="color:var(--muted)">▾</span></div>
+      <label>1. Client <span class="hint">— 514 clients · search by ID or name</span></label>
+      <div class="input focus"><span>sharma</span><span style="color:var(--muted)">▾</span></div>
       <div class="dropdown">
-        <div class="sel"><span><mark>109B</mark></span><small>AY 2019–2022 · 4 years</small></div>
-        <div><span><mark>109B</mark>1</span><small>AY 2023–2026 · 4 years</small></div>
+        <div class="sel"><span><b>109B</b> &nbsp;RAKESH <mark>SHARMA</mark></span><small>2019–2022 · 4 years</small></div>
+        <div><span><b>109B1</b> &nbsp;PRIYA <mark>SHARMA</mark></span><small>2023–2026 · 4 years</small></div>
+        <div><span><b>42</b> &nbsp;<mark>SHARMA</mark> TRADERS</span><small>2020–2026 · 7 years</small></div>
       </div>
+      <div class="dropdown" style="margin-top:10px">
+        <div class="sel"><span><b><mark>109B</mark></b> &nbsp;RAKESH SHARMA</span><small>2019–2022 · 4 years</small></div>
+        <div><span><b><mark>109B</mark>1</b> &nbsp;PRIYA SHARMA</span><small>2023–2026 · 4 years</small></div>
+      </div>
+      <div class="hint" style="font-size:12px;color:var(--muted);margin-top:4px">Above: results for “sharma” (name match), then for “109b” (ID match).</div>
     </div>
 
     <div class="field">
-      <label>2. Assessment years <span class="hint">— click to toggle; greyed = no ITRV/Computation found</span></label>
+      <label>2. Years <span class="hint">— click to toggle; greyed = no ITRV/Computation found</span></label>
       <div class="chips">
-        <span class="chip on">2019</span><span class="chip">2020</span><span class="chip on">2021</span><span class="chip on">2022</span>
+        <span class="chip on">2019</span><span class="chip off">2020</span><span class="chip on">2021</span><span class="chip on">2022</span>
       </div>
       <div class="row">Range: <span class="mini">2021 ▾</span> to <span class="mini">2022 ▾</span> <span class="btn sm">Select range</span> <span class="btn sm">All</span> <span class="btn sm">None</span></div>
     </div>
@@ -322,42 +362,40 @@ Computation ^Computation_{ID}_{Y}_\d+\.pdf$</code></pre>
     </div>
 
     <div class="actions">
-      <span class="summary">3 years selected → about 6 files into …/Downloads/109B/</span>
+      <span class="summary">3 years selected → files go into …/Downloads/109B/</span>
       <span class="btn primary">Copy files</span>
     </div>
   </div>
 </div></div>
-<p class="caption">The year chips appear only after a client is chosen. “Select range” adds the range to the current selection, so a range plus separate years (for example 2020–2022 and 2025) takes two clicks. Destination defaults to Downloads.</p>
+<p class="caption">After selection, the input shows “109B — RAKESH SHARMA”. The year chips appear only after a client is chosen. “Select range” adds the range to the current selection, so a range plus separate years (for example 2020–2022 and 2025) takes two clicks. Destination defaults to Downloads. Browse… opens the native folder dialog.</p>
 
-<h4>Fuzzy matching behaviour</h4>
+<h4>Fuzzy search over ID and name</h4>
 <ul>
-  <li>Case-insensitive. Results are ranked: exact match, then prefix, then substring, then in-order subsequence. Ties are broken by fewer gaps and shorter ID. Matched characters are highlighted.</li>
-  <li>Examples: <code>109b</code> → 109B, 109B1; <code>neha</code> → NEHA1…NEHA5; <code>7d</code> → 7D first.</li>
-  <li>Keys: ↑/↓ to move, Enter to choose, Esc to close. With an empty query, the full list is shown in natural order (scrollable).</li>
-  <li>Optional extra (<a href="#questions">decision 4</a>): show the assessee's name next to the ID and make it searchable. The name would be read from <code>FiledJson_*.json</code>, which exists for about 88% of client-years.</li>
+  <li>Each client has these search fields: <b>ID</b>, <b>name</b> and <b>old-name aliases</b>. The query is scored against each field, and the best score wins.</li>
+  <li><b>ID scoring</b> (case-insensitive), best first: exact, then prefix, then substring, then in-order subsequence. Ties go to fewer gaps and the shorter ID.</li>
+  <li><b>Name scoring</b> is word-aware. Every query word must match a name word by prefix (best), by substring, or by subsequence for typos with missing letters. Word order doesn't matter, so <code>sharma rak</code> and <code>rakesh sh</code> both find RAKESH SHARMA.</li>
+  <li><b>Ranking:</b> an exact or prefix ID match always ranks above name matches, so typing <code>42</code> puts client 42 first even if other names contain “42”. Below that, results are ordered by score.</li>
+  <li>The matched characters are highlighted in whichever field matched. Clients without a name show “(name not found)” in grey and are searchable by ID only.</li>
+  <li>Keys: ↑/↓ to move, Enter to choose, Esc to close. With an empty query, the full list is shown in natural ID order (scrollable).</li>
 </ul>
 
-<h3>Screen C — folder picker (used for both CompuTax and destination)</h3>
-<div class="mock-wrap"><div class="modal-bg"><div class="modal">
-  <b>Choose destination folder</b>
-  <div class="crumbs">/ Users / me / Documents / Clients</div>
-  <div class="shortcuts"><span class="btn sm">Home</span><span class="btn sm">Desktop</span><span class="btn sm">Documents</span><span class="btn sm">Downloads</span><span class="btn sm">↑ Up</span></div>
-  <div class="dirlist">
-    <div>📁 2024 returns</div>
-    <div class="sel">📁 Tax exports</div>
-    <div>📁 Scans</div>
-  </div>
-  <div class="actions" style="margin-top:12px"><span class="btn sm">+ New folder</span><span><span class="btn sm">Cancel</span> <span class="btn sm primary" style="background:var(--accent);color:#fff;border-color:var(--accent)">Use this folder</span></span></div>
-</div></div></div>
-<p class="caption">Double-click enters a folder. The path text field on the main form also accepts a pasted path. On Windows, the shortcuts row also lists drives (C:\, D:\ …).</p>
+<h3>Screen C — choosing a folder (native OS dialog)</h3>
+<p>There is no custom screen. Clicking <b>Browse…</b> opens the operating system's own folder dialog over the browser. While it is open, the button shows a spinner and the text “Choose a folder in the dialog window…”. When the user confirms, the path appears in the “Save to” field. If they cancel, nothing changes.</p>
+<table>
+  <tr><th></th><th>macOS</th><th>Windows</th></tr>
+  <tr><td>Dialog</td><td>Finder “Choose a folder” panel</td><td>Explorer “Select Folder” dialog</td></tr>
+  <tr><td>Title</td><td colspan="2">“Choose where to save the files” for the destination, or “Select your CompuTax folder” for setup</td></tr>
+  <tr><td>Starts in</td><td colspan="2">The current value of the field, otherwise Downloads (destination) or the home folder (setup)</td></tr>
+  <tr><td>New folder</td><td colspan="2">Built into both dialogs</td></tr>
+</table>
 
 <h3>Screen D — results</h3>
 <div class="mock-wrap"><div class="win">
   <div class="win-bar"><i></i><i></i><i></i><span>127.0.0.1:51734</span></div>
   <div class="app">
-    <div class="banner-ok">✓ Copied 6 files for client 109B to /Users/me/Downloads/109B</div>
+    <div class="banner-ok">✓ Copied 6 files for 109B — RAKESH SHARMA to /Users/me/Downloads/109B</div>
     <table class="res">
-      <tr><th>AY</th><th>ITR-V</th><th>Computation</th></tr>
+      <tr><th>Year</th><th>ITR-V</th><th>Computation</th></tr>
       <tr><td>2019</td><td class="miss">✗ not found</td><td class="wn">⚠ not found — folder has Computation_274_2019_1.pdf (different ID)</td></tr>
       <tr><td>2021</td><td class="ok">✓ ITRV_109B.pdf</td><td class="ok">✓ Computation_109B_2021_1.pdf</td></tr>
       <tr><td>2022</td><td class="ok">✓ ITRV_109B.pdf<br>✓ ITRV_109B_Revised.pdf</td><td class="ok">✓ Computation_109B_2022_1.pdf<br>✓ Computation_109B_2022_2.pdf</td></tr>
@@ -372,15 +410,15 @@ Computation ^Computation_{ID}_{Y}_\d+\.pdf$</code></pre>
 <p>The end user downloads one file for their OS from the GitHub Releases page and runs it.</p>
 <table>
   <tr><th>OS</th><th>Artifact</th><th>First-run note</th></tr>
-  <tr><td>Windows 10/11</td><td><code>computax-downloader-windows.exe</code></td><td>SmartScreen warns about an unsigned app: “More info → Run anyway”.</td></tr>
-  <tr><td>macOS (Apple Silicon + Intel)</td><td><code>computax-downloader-macos-arm64</code>, <code>…-x86_64</code></td><td>Gatekeeper blocks unsigned apps the first time: right-click → Open, or run <code>xattr -d com.apple.quarantine</code>. Signing and notarisation would need an Apple Developer account ($99/yr).</td></tr>
-  <tr><td>Linux x86_64</td><td><code>computax-downloader-linux</code></td><td><code>chmod +x</code> after download.</td></tr>
+  <tr><td>Windows 10/11 (x64)</td><td><code>computax-downloader-windows.exe</code></td><td>SmartScreen warns about an unsigned app: “More info → Run anyway”.</td></tr>
+  <tr><td>macOS, Apple Silicon (M1 and later)</td><td><code>computax-downloader-macos-arm64.zip</code> (zipped so the file stays executable)</td><td>Gatekeeper blocks unsigned apps the first time: right-click → Open, or run <code>xattr -d com.apple.quarantine</code>. Signing and notarisation would need an Apple Developer account ($99/yr).</td></tr>
+  
 </table>
 <ul>
-  <li>The build runs in <code>.github/workflows/release.yml</code>. A matrix of <code>windows-latest</code>, <code>macos-14</code> (arm64), <code>macos-13</code> (x86_64) and <code>ubuntu-22.04</code> runs <code>uv sync</code> then <code>uv run pyinstaller --onefile --add-data static</code>, triggered by pushing a <code>v*</code> tag. Ubuntu 22.04 keeps glibc old enough for most distros.</li>
-  <li>PyInstaller is a <b>dev</b> dependency only (<code>uv add --dev pyinstaller</code>). The shipped app has zero third-party runtime packages.</li>
-  <li>Developers can still run it with <code>uv run computax-client-file-download [--root PATH] [--port N] [--no-browser]</code>.</li>
-  <li>Note: the repo is private, so whoever downloads releases needs access to it. Alternatively, you can share the binaries directly (for example by email or a shared drive).</li>
+  <li>The build runs in <code>.github/workflows/release.yml</code>, triggered by pushing a <code>v*</code> tag. A matrix of <code>windows-latest</code> and <code>macos-latest</code> (arm64) runs <code>uv sync</code> then <code>uv run pyinstaller packaging/computax-downloader.spec</code> (one file, with <code>static/</code> bundled). The binaries are attached to the release.</li>
+  <li>PyInstaller is a <b>dev</b> dependency only (<code>uv add --dev pyinstaller</code>). The shipped app has zero third-party runtime packages. On Windows, PyInstaller bundles Tcl/Tk automatically for the folder dialog. On macOS, Tk is excluded because the dialog uses <code>osascript</code>.</li>
+  <li>Developers can still run it with <code>uv run computax-client-file-download [--root PATH] [--port N] [--no-browser]</code>. That also works on Linux, but Linux is not a supported target and has no built binary.</li>
+  <li>The repo is private, so whoever downloads releases needs access to it. Alternatively, you can share the binaries directly (for example by email or a shared drive).</li>
 </ul>
 
 <!-- ================================================================== -->
@@ -390,35 +428,39 @@ Computation ^Computation_{ID}_{Y}_\d+\.pdf$</code></pre>
 ├── README.md                   # how to run / build / release
 ├── docs/plan.html              # this document
 ├── src/computax_client_file_download/
-│   ├── __init__.py             # main(): parse args, start server, open browser
+│   ├── __init__.py             # main(): parse args (incl. --pick-folder), start server, open browser
 │   ├── server.py               # ThreadingHTTPServer, routing, token/Host checks
 │   ├── scanner.py              # index build, natural sort, file resolution rules
+│   ├── names.py                # FiledJson → name + aliases, background loader
 │   ├── copier.py               # copy + report
-│   ├── browse.py               # folder listing, shortcuts, open-in-file-manager
-│   ├── settings.py             # load/save settings.json in OS config dir
+│   ├── dialogs.py              # native folder dialog (osascript / Tk child process), open folder
+│   ├── settings.py             # load/save settings.json in OS settings folder
 │   └── static/
 │       ├── index.html
-│       ├── app.js              # state, fuzzy match, year picker, modal, results
+│       ├── app.js              # state, fuzzy search (ID + name), year picker, results
 │       └── style.css
 ├── tests/
 │   ├── conftest.py             # builds a fake CompuTax tree in tmp_path with all quirks
 │   ├── test_scanner.py
+│   ├── test_names.py           # every ITR form shape, malformed JSON, misfiled folder
 │   ├── test_copier.py
-│   └── test_server.py          # spins up server on random port; API round-trips
+│   └── test_server.py          # spins up server on random port; API round-trips (dialog mocked)
 └── .github/workflows/
-    ├── ci.yml                  # pytest on 3 OSes on every push
+    ├── ci.yml                  # pytest on Windows + macOS on every push
     └── release.yml             # PyInstaller binaries on tag</code></pre>
-<p>The settings file is stored in the standard per-user config folder: <code>%APPDATA%\computax-downloader\settings.json</code> on Windows, <code>~/Library/Application Support/computax-downloader/</code> on macOS, and <code>$XDG_CONFIG_HOME</code> or <code>~/.config/computax-downloader/</code> on Linux. It contains one key, <code>{"computax_root": "…"}</code>.</p>
+<p>The settings file is stored in the standard per-user settings folder: <code>%APPDATA%\computax-downloader\settings.json</code> on Windows and <code>~/Library/Application Support/computax-downloader/settings.json</code> on macOS. It contains one key, <code>{"computax_root": "…"}</code>.</p>
 
 <!-- ================================================================== -->
 <h2 id="security">10. Safety &amp; edge cases</h2>
 <ul>
   <li><b>Network:</b> the server binds only to <code>127.0.0.1</code>, so other machines cannot reach it.</li>
-  <li><b>Other local web pages:</b> a random per-launch token plus a check of the <code>Host</code> header block another browser tab or a DNS-rebinding attack from calling the API and copying tax files.</li>
-  <li><b>Path handling:</b> client IDs and years must exist in the index and are never used as raw path fragments. Source paths are resolved and must stay under the CompuTax root.</li>
+  <li><b>Other local web pages:</b> a random per-launch token plus a check of the <code>Host</code> header block another browser tab or a DNS-rebinding attack from calling the API, reading client names or copying tax files.</li>
+  <li><b>Client names</b> (personal data) live only in server memory and the open page. They are never logged or written to disk.</li>
+  <li><b>Path handling:</b> client IDs and years must exist in the index and are never used as raw path fragments. Source paths are resolved and must stay under the CompuTax root. Dialog prompt strings are fixed in code and passed to <code>osascript</code> as arguments, never built from user input.</li>
   <li><b>Read-only source:</b> the code never opens anything under the root for writing.</li>
   <li><b>Destination errors</b> (folder missing, no permission, disk full, file locked on Windows) are reported for each file and do not abort the whole batch.</li>
-  <li><b>Network drives:</b> if CompuTax sits on a NAS or SMB share, scanning stays fast because only folder names are listed. Copies may be slower; the button shows a spinner and the files copied so far.</li>
+  <li><b>Dialog hidden behind other windows:</b> the Windows dialog is forced on top, and the macOS dialog is attached to the frontmost app. If the dialog is still lost, the page message says to look for it. The user can also cancel it from the page, which ends the child process.</li>
+  <li><b>Network drives:</b> if CompuTax sits on a NAS or SMB share, scanning stays fast because only folder names are listed. Names load in the background. Copies may be slower; the button shows a spinner and the files copied so far.</li>
   <li><b>Port in use:</b> the app asks the OS for a free port. Two copies can run side by side.</li>
   <li><b>Missing or moved CompuTax folder</b> (for example a drive letter changed): the app goes back to the setup screen with the old path pre-filled.</li>
 </ul>
@@ -427,34 +469,40 @@ Computation ^Computation_{ID}_{Y}_\d+\.pdf$</code></pre>
 <h2 id="testing">11. Testing</h2>
 <ul>
   <li><b>Unit tests</b> (pytest) run against a synthetic tree that reproduces every quirk from section 2: mixed case, <code>_Revised</code>, <code>_2</code>/<code>_3</code>, <code>ComputationCompare</code>, <code>.pdf_</code>, the misfiled 264B-style folder, empty folders, and the 2012-style single-file year.</li>
-  <li><b>API tests:</b> start the server on a random port and exercise every endpoint, including token rejection and path-traversal attempts.</li>
-  <li><b>Fuzzy matcher:</b> a small set of query → expected-top-result cases, run in Node by CI or in a browser test page.</li>
-  <li><b>Manual check against the real data:</b> run with <code>--root ~/projects/CompuTax</code> and spot-check about 10 clients across years against Finder.</li>
-  <li><b>CI:</b> pytest runs on Windows, macOS and Linux to catch path and case-sensitivity differences.</li>
+  <li><b>Name tests:</b> FiledJson fixtures for ITR-1 through ITR-6, BOM-prefixed and malformed files, a name change across years (alias), and a misfiled folder that must not take another client's name.</li>
+  <li><b>API tests:</b> start the server on a random port and exercise every endpoint, including token rejection and path-traversal attempts. The folder dialog is replaced with a stub.</li>
+  <li><b>Fuzzy search:</b> a table of query → expected-top-result cases covering ID and name matches, run in Node in CI.</li>
+  <li><b>Manual check against the real data:</b> run with <code>--root ~/projects/CompuTax</code>, spot-check about 10 clients across years against Finder, and check the folder dialog by hand on both a Mac and a Windows PC.</li>
+  <li><b>CI:</b> pytest runs on Windows and macOS to catch path and case-sensitivity differences.</li>
 </ul>
 
 <!-- ================================================================== -->
 <h2 id="milestones">12. Milestones</h2>
 <ol>
   <li><b>Done:</b> git repo, private GitHub repo, uv project scaffold, this plan.</li>
-  <li><b>Core:</b> <code>scanner.py</code> and <code>copier.py</code> with tests.</li>
-  <li><b>Server:</b> routes, token, settings, folder browsing, quit/heartbeat.</li>
-  <li><b>UI:</b> setup screen, main form with fuzzy dropdown and year picker, folder modal, results.</li>
-  <li><b>Packaging:</b> PyInstaller spec, CI workflow, release workflow, and a README with run instructions for each OS.</li>
+  <li><b>Done (all items below, first version):</b> core, server, UI, packaging. A manual check of the native folder dialog on both a Mac and a Windows PC is still pending.</li>
+  <li><b>Core:</b> <code>scanner.py</code>, <code>names.py</code> and <code>copier.py</code> with tests.</li>
+  <li><b>Server:</b> routes, token, settings, native folder dialog, quit/heartbeat.</li>
+  <li><b>UI:</b> setup screen, main form with ID + name fuzzy dropdown and year picker, results.</li>
+  <li><b>Packaging:</b> PyInstaller spec, CI workflow, release workflow, and a README with run instructions for Windows and macOS.</li>
   <li><b>Hardening:</b> manual pass over the real CompuTax data, then fixes.</li>
 </ol>
 
 <!-- ================================================================== -->
-<h2 id="questions">13. Decisions for you</h2>
+<h2 id="decisions">13. Decisions</h2>
+<h3>Confirmed in review</h3>
 <table>
-  <tr><th>#</th><th>Question</th><th>Recommendation</th><th>Alternative</th></tr>
-  <tr><td>1</td><td>How should the CompuTax path be remembered? A one-time prompt needs the path saved somewhere, which slightly bends “no data persistence”.</td><td><span class="tag rec">Recommended</span> Save only this path in a one-line <code>settings.json</code> in the OS config folder. Nothing else is ever stored.</td><td>Keep it in memory only, so the app asks once per launch. Or use a <code>--root</code> flag or a <code>computax_root.txt</code> placed next to the executable.</td></tr>
-  <tr><td>2</td><td>Output folder layout?</td><td><span class="tag rec">Recommended</span> <code>dest/&lt;ID&gt;/AY&lt;year&gt;/</code> with the original filenames.</td><td>Flat <code>dest/</code> with ITRV renamed to <code>ITRV_&lt;ID&gt;_&lt;year&gt;.pdf</code>. Or <code>dest/&lt;year&gt;/</code> without the ID folder.</td></tr>
-  <tr><td>3</td><td>Should <code>ITRV_&lt;id&gt;_Revised.pdf</code> be copied?</td><td><span class="tag rec">Recommended</span> Copy both the original and the revised file.</td><td>Copy only the revised file when it exists, or only the original.</td></tr>
-  <tr><td>4</td><td>Show client names (from <code>FiledJson</code>) in the dropdown and make them searchable?</td><td>Worth adding. Typing a name is easier than remembering “109B1”. It costs one JSON read per client at index time (can be done lazily), and names are only shown locally.</td><td>IDs only, exactly as specified.</td></tr>
-  <tr><td>5</td><td>Should year labels show AY or FY?</td><td>“AY 2024” to match the folder names, with “(FY 2023-24)” in small text.</td><td>Raw “2024”.</td></tr>
-  <tr><td>6</td><td>Do you need Intel Mac and Linux builds?</td><td>Build all four. It is free in CI.</td><td>Windows and Apple Silicon only.</td></tr>
+  <tr><th>#</th><th>Topic</th><th>Decision</th></tr>
+  <tr><td>1</td><td>Remembering the CompuTax path</td><td>Saved in <code>settings.json</code> in the OS's standard settings folder. This is the only persisted data.</td></tr>
+  <tr><td>2</td><td>Output layout</td><td><code>&lt;destination&gt;/&lt;ID&gt;/&lt;year&gt;/</code> with original filenames. The year folder uses the plain year (per decision 5) instead of the earlier “AY” prefix.</td></tr>
+  <tr><td>3</td><td>Revised ITR-V</td><td>Copy both <code>ITRV_&lt;id&gt;.pdf</code> and <code>ITRV_&lt;id&gt;_Revised.pdf</code>.</td></tr>
+  <tr><td>4</td><td>Client names</td><td>Shown next to the ID and searchable. Search works by ID or by name.</td></tr>
+  <tr><td>5</td><td>Year labels</td><td>Same as the CompuTax folder names (“2024”).</td></tr>
+  <tr><td>6</td><td>Platforms</td><td>Windows (x64) and macOS on Apple Silicon only. No Intel Mac or Linux builds.</td></tr>
+  <tr><td>—</td><td>Folder selection</td><td>Native OS folder dialog instead of a custom in-page browser.</td></tr>
 </table>
+
+
 
 </main>
 </body>

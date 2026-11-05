@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            binary: computax-downloader-windows
+          - os: macos-latest
+            binary: computax-downloader-macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - run: uv run pytest -q
+      - name: Build one-file executable
+        env:
+          BINARY_NAME: ${{ matrix.binary }}
+        run: uv run pyinstaller --noconfirm --distpath dist --workpath build packaging/computax-downloader.spec
+      - name: Zip the macOS binary (keeps the executable permission)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent dist/${{ matrix.binary }} dist/${{ matrix.binary }}.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary }}
+          path: |
+            dist/*.exe
+            dist/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" assets/* --repo "${{ github.repository }}" --title "${{ github.ref_name }}" --generate-notes
