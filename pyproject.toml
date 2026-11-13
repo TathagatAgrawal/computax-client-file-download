@@ -1,6 +1,6 @@
 [project]
 name = "computax-client-file-download"
-version = "0.1.2"
+version = "0.1.3"
 description = "ITR Fetch: copy ITR-V and Computation PDFs for a CompuTax client across years"
 readme = "README.md"
 authors = [

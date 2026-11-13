@@ -21,7 +21,7 @@ from .settings import (
 )
 
 APP_NAME = "ITR Fetch"
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
