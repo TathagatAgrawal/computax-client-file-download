@@ -163,7 +163,8 @@ def test_client_detail(make_app, computax: Path) -> None:
 
 def test_copy_and_open_rules(make_app, computax: Path, tmp_path: Path) -> None:
     """Copy validates input, writes files and only lets copied folders be opened."""
-    client, _, _ = make_app(computax)
+    client, state, _ = make_app(computax)
+    assert state.names_done.wait(5)
     dest = tmp_path / "out"
     dest.mkdir()
     assert (
@@ -188,7 +189,8 @@ def test_copy_and_open_rules(make_app, computax: Path, tmp_path: Path) -> None:
         "POST", "/api/copy", {"id": "1", "years": [2024, 2021], "dest": str(dest)}
     )
     assert status == 200 and report["totals"]["copied"] == 4
-    assert (dest / "1/ITRV_1_2021.pdf").exists()
+    assert report["dest_root"] == str(dest / "ASHA SHARMA")
+    assert (dest / "ASHA SHARMA/ITRV_1_2021.pdf").exists()
     assert client.call("POST", "/api/open", {"path": str(tmp_path)})[0] == 400
 
 
@@ -243,3 +245,18 @@ def test_ping(make_app, computax: Path) -> None:
     """Ping answers with the token, so a second launch can find this instance."""
     client, _, _ = make_app(computax)
     assert client.call("GET", "/api/ping") == (200, {"ok": True})
+
+
+def test_copy_is_refused_until_names_are_loaded(
+    make_app, computax: Path, tmp_path: Path
+) -> None:
+    """Copying waits for names so the folder is named consistently."""
+    client, state, _ = make_app(computax)
+    assert state.names_done.wait(5)
+    ready = state.names_done
+    state.names_done = threading.Event()
+    body = {"id": "1", "years": [2024], "dest": str(tmp_path)}
+    status, data = client.call("POST", "/api/copy", body)
+    assert status == 409 and "loading" in data["error"]
+    state.names_done = ready
+    assert client.call("POST", "/api/copy", body)[0] == 200

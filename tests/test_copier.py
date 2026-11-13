@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from computax_client_file_download.copier import copy_client_files, target_name
-from computax_client_file_download.scanner import build_index
+from computax_client_file_download.scanner import Client, build_index
 
 
 def test_copies_flat_into_id_folder_with_year_suffix(
@@ -118,3 +118,12 @@ def test_symlink_outside_root_is_refused(computax: Path, tmp_path: Path) -> None
         "outside the CompuTax folder" in w for w in report["years"][0]["warnings"]
     )
     assert not (tmp_path / "out/1/ITRV_1_Revised_2024.pdf").exists()
+
+
+def test_folder_is_safe_on_every_os() -> None:
+    """Client names lose path separators and Windows-illegal characters."""
+    assert Client(id="1", name="ASHA SHARMA").folder == "ASHA SHARMA"
+    assert Client(id="1", name="M/S Sharma: Traders?").folder == "M_S Sharma_ Traders_"
+    assert Client(id="1", name="Sharma & Co. ").folder == "Sharma & Co"
+    assert Client(id="1", name="  ").folder == "1"
+    assert Client(id="1", name=None).folder == "1"

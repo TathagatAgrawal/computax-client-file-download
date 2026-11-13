@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 YEAR_RE = re.compile(r"\d{4}")
+UNSAFE_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 ANY_ITRV_RE = re.compile(r"ITRV_(.+?)(_Revised)?\.pdf", re.IGNORECASE)
 ANY_COMPUTATION_RE = re.compile(r"Computation_(.+)_(\d{4})_(\d+)\.pdf", re.IGNORECASE)
 
@@ -25,11 +26,22 @@ class Client:
     name: str | None = None
     aliases: list[str] = field(default_factory=list)
 
+    @property
+    def folder(self) -> str:
+        """Return a folder name that is safe on every OS: the name, else the ID.
+
+        Characters that are illegal in Windows filenames (which include path
+        separators) become ``_``, and trailing dots and spaces are dropped.
+        """
+        name = UNSAFE_CHARS_RE.sub("_", self.name or "").strip().rstrip(". ")
+        return name or self.id
+
     def to_json(self) -> dict:
         """Return the client's summary as sent to the browser."""
         return {
             "id": self.id,
             "name": self.name,
+            "folder": self.folder,
             "aliases": self.aliases,
             "years": sorted(self.folders),
         }

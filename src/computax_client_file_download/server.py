@@ -395,6 +395,8 @@ class Handler(BaseHTTPRequestHandler):
         client = state.client(client_id)
         if state.root is None:
             raise ApiError(409, "The CompuTax folder has not been set.")
+        if not state.names_done.is_set():
+            raise ApiError(409, "Client names are still loading; try again shortly.")
         report = copy_client_files(state.root, client, years, dest_path)
         with state.lock:
             state.copied_dirs.add(report["dest_root"])

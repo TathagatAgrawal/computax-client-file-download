@@ -18,6 +18,7 @@ const state = {
   root: "",
   rangeFor: null, // client ID the range selects were last filled for
   clients: [],
+  namesReady: false,
   client: null, // selected client summary
   detail: null, // per-year availability for the selected client
   years: new Set(),
@@ -200,6 +201,7 @@ let namesPoll = null;
 
 function applyClients(data) {
   state.clients = data.clients;
+  state.namesReady = data.names_ready;
   const named = data.clients.filter((c) => c.name).length;
   $("client-hint").textContent = data.names_ready
     ? `${data.clients.length} clients · search by ID or name`
@@ -220,6 +222,7 @@ function applyClients(data) {
     }
   }
   if (!$("client-list").hidden) renderList();
+  updateSummary();
 }
 
 function renderList() {
@@ -411,9 +414,10 @@ function updateSummary() {
   if (!state.client) text = "Choose a client.";
   else if (!n) text = "Choose at least one year.";
   else if (!dest) text = "Choose where to save the files.";
-  else text = `${n} year${n === 1 ? "" : "s"} selected → files go into ${joinPath(dest, state.client.id)}`;
+  else if (!state.namesReady) text = "Loading client names… copying unlocks when they are ready.";
+  else text = `${n} year${n === 1 ? "" : "s"} selected → files go into ${joinPath(dest, state.client.folder)}`;
   $("copy-summary").textContent = text;
-  $("copy-btn").disabled = !(state.client && n && dest);
+  $("copy-btn").disabled = !(state.client && n && dest && state.namesReady);
 }
 
 $("copy-btn").addEventListener("click", async () => {

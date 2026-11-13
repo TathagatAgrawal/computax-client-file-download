@@ -1,4 +1,4 @@
-"""Copy a client's ITRV and Computation PDFs into ``<dest>/<ID>/``.
+"""Copy a client's ITRV and Computation PDFs into ``<dest>/<name or ID>/``.
 
 All years go into the one client folder, so the year is appended to any filename
 that doesn't already contain it: ``ITRV_1.pdf`` from 2024 becomes
@@ -74,7 +74,7 @@ def copy_client_files(root: Path, client: Client, years: list[int], dest: Path) 
 
     Errors on one file are recorded and the rest of the batch continues.
     """
-    dest_root = dest / client.id
+    dest_root = dest / client.folder
     report = []
     for year in sorted(set(years)):
         entry = {"year": year, "itrv": [], "computation": [], "warnings": []}
