@@ -28,16 +28,31 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     """Parse command-line options."""
     parser = argparse.ArgumentParser(
         prog="itr-fetch",
-        description=f"{APP_NAME}: copy a client's ITRV and Computation PDFs out of the CompuTax folder.",
+        description=(
+            f"{APP_NAME}: copy a client's ITRV and Computation PDFs "
+            "out of the CompuTax folder."
+        ),
     )
-    parser.add_argument("--root", help="CompuTax folder to use for this run (overrides the saved one)")
-    parser.add_argument("--port", type=int, default=0, help="port to listen on (default: any free port)")
+    parser.add_argument(
+        "--root", help="CompuTax folder to use for this run (overrides the saved one)"
+    )
+    parser.add_argument(
+        "--port", type=int, default=0, help="port to listen on (default: any free port)"
+    )
     parser.add_argument(
         "--no-browser",
         action="store_true",
-        help="don't open the browser, and keep running when no page is open (for development)",
+        help=(
+            "don't open the browser, and keep running when no page is open "
+            "(for development)"
+        ),
     )
-    parser.add_argument("--pick-folder", nargs=3, metavar=("TITLE", "INITIAL", "ANSWER_FILE"), help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--pick-folder",
+        nargs=3,
+        metavar=("TITLE", "INITIAL", "ANSWER_FILE"),
+        help=argparse.SUPPRESS,
+    )
     return parser.parse_args(argv)
 
 
@@ -47,7 +62,9 @@ def _running_instance_url() -> str | None:
     if not record:
         return None
     base = record["url"].split("/?", 1)[0]
-    req = urllib.request.Request(f"{base}/api/ping", headers={"X-Session-Token": record["token"]})
+    req = urllib.request.Request(
+        f"{base}/api/ping", headers={"X-Session-Token": record["token"]}
+    )
     try:
         with urllib.request.urlopen(req, timeout=2) as res:
             if json.loads(res.read()).get("ok"):
@@ -58,7 +75,7 @@ def _running_instance_url() -> str | None:
 
 
 def _log_crash() -> None:
-    """Write the current exception to error.log, since a windowless app has no console."""
+    """Write the current exception to error.log (a windowless app has no console)."""
     try:
         log = config_dir() / "error.log"
         log.parent.mkdir(parents=True, exist_ok=True)

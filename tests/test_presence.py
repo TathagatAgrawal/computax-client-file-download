@@ -22,7 +22,7 @@ def test_never_exits_while_a_page_is_open() -> None:
 
 
 def test_exits_after_grace_once_last_page_closes() -> None:
-    """After the last page closes, the short grace period applies (reloads reconnect in time)."""
+    """After the last page closes, a short grace period applies for reloads."""
     p = Presence()
     p.opened()
     p.opened()

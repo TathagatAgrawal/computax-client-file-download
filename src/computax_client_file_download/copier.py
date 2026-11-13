@@ -16,7 +16,7 @@ from .scanner import Client, resolve_year
 
 
 def target_name(src_name: str, client_id: str, year: int) -> str:
-    """Return the saved filename: ``src_name`` with ``_<year>`` added unless already present.
+    """Return the saved filename: ``src_name`` plus ``_<year>`` unless present.
 
     The client ID part of the name is ignored when looking for the year, so a
     client whose ID looks like a year still gets the suffix.
@@ -24,7 +24,9 @@ def target_name(src_name: str, client_id: str, year: int) -> str:
     stem, dot, ext = src_name.rpartition(".")
     if not dot:
         stem, ext = src_name, ""
-    rest = re.sub(rf"_{re.escape(client_id)}(?=_|$)", "", stem, count=1, flags=re.IGNORECASE)
+    rest = re.sub(
+        rf"_{re.escape(client_id)}(?=_|$)", "", stem, count=1, flags=re.IGNORECASE
+    )
     if re.search(rf"(^|_){year}(_|$)", rest):
         return src_name
     return f"{stem}_{year}{dot}{ext}"
@@ -90,10 +92,13 @@ def copy_client_files(root: Path, client: Client, years: list[int], dest: Path) 
                     entry[kind].append(item)
                     if item["status"] == "blocked":
                         entry["warnings"].append(
-                            f"{item['name']} was not saved because a folder with that name is already in {dest_root}."
+                            f"{item['name']} was not saved because a folder with "
+                            f"that name is already in {dest_root}."
                         )
                 else:
-                    entry["warnings"].append(f"{src.name} points outside the CompuTax folder; not copied.")
+                    entry["warnings"].append(
+                        f"{src.name} points outside the CompuTax folder; not copied."
+                    )
         report.append(entry)
     counts = {"copied": 0, "exists": 0, "blocked": 0, "error": 0}
     for entry in report:

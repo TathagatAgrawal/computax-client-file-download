@@ -18,15 +18,23 @@ ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 
 
 def render_png(svg: Path, out: Path, work: Path) -> None:
-    """Render the SVG at 1024x1024 with a transparent background using headless Chrome."""
+    """Render the SVG at 1024x1024, transparent, using headless Chrome."""
     html = work / "icon.html"
     html.write_text(
         f'<html><body style="margin:0;background:transparent">'
         f'<img src="{svg.as_uri()}" width="1024" height="1024"></body></html>'
     )
     subprocess.run(
-        [CHROME, "--headless=new", f"--user-data-dir={work / 'profile'}", f"--screenshot={out}",
-         "--window-size=1024,1024", "--default-background-color=00000000", "--hide-scrollbars", html.as_uri()],
+        [
+            CHROME,
+            "--headless=new",
+            f"--user-data-dir={work / 'profile'}",
+            f"--screenshot={out}",
+            "--window-size=1024,1024",
+            "--default-background-color=00000000",
+            "--hide-scrollbars",
+            html.as_uri(),
+        ],
         check=True,
         capture_output=True,
     )
@@ -34,7 +42,11 @@ def render_png(svg: Path, out: Path, work: Path) -> None:
 
 def resize(src: Path, size: int, out: Path) -> None:
     """Resize a PNG with sips."""
-    subprocess.run(["sips", "-z", str(size), str(size), str(src), "--out", str(out)], check=True, capture_output=True)
+    subprocess.run(
+        ["sips", "-z", str(size), str(size), str(src), "--out", str(out)],
+        check=True,
+        capture_output=True,
+    )
 
 
 def build_icns(master: Path, out: Path, work: Path) -> None:
@@ -59,7 +71,9 @@ def build_ico(master: Path, out: Path, work: Path) -> None:
     entries, blobs = b"", b""
     for size, data in images:
         dim = 0 if size >= 256 else size
-        entries += struct.pack("<BBBBHHII", dim, dim, 0, 0, 1, 32, len(data), offset + len(blobs))
+        entries += struct.pack(
+            "<BBBBHHII", dim, dim, 0, 0, 1, 32, len(data), offset + len(blobs)
+        )
         blobs += data
     out.write_bytes(header + entries + blobs)
 

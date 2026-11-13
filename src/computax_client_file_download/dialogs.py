@@ -4,7 +4,8 @@ Browsers never reveal real folder paths, so the local server opens the dialog
 itself. macOS uses ``osascript`` (built in). Windows re-launches this program
 with ``--pick-folder`` so Tk runs in its own process, away from the server's
 threads; the child writes its answer to a temporary file because a windowless
-app has no usable stdout. Linux is only for development and uses ``zenity`` when available.
+app has no usable stdout. Linux is only for development and uses ``zenity`` when
+available.
 """
 
 import json
@@ -24,7 +25,8 @@ MAC_SCRIPT = [
     'if startPath is "" then',
     "set chosen to choose folder with prompt promptText",
     "else",
-    "set chosen to choose folder with prompt promptText default location (POSIX file startPath)",
+    "set chosen to choose folder with prompt promptText "
+    "default location (POSIX file startPath)",
     "end if",
     "return POSIX path of chosen",
     "end run",
@@ -56,7 +58,9 @@ def _command(title: str, initial: str, answer_file: str) -> list[str]:
     if shutil.which("zenity"):
         cmd = ["zenity", "--file-selection", "--directory", f"--title={title}"]
         return cmd + ([f"--filename={initial}/"] if initial else [])
-    raise DialogUnavailable("No folder dialog is available on this system. Type the path instead.")
+    raise DialogUnavailable(
+        "No folder dialog is available on this system. Type the path instead."
+    )
 
 
 def _parse(returncode: int, out: str, err: str, answer: str) -> str | None:
@@ -109,7 +113,11 @@ class FolderDialog:
                     creationflags=flags,
                 )
                 out, err = self._proc.communicate()
-                answer = answer_file.read_text(encoding="utf-8") if answer_file.exists() else ""
+                answer = (
+                    answer_file.read_text(encoding="utf-8")
+                    if answer_file.exists()
+                    else ""
+                )
             return _parse(self._proc.returncode, out, err, answer)
         finally:
             self._proc = None
@@ -123,7 +131,10 @@ class FolderDialog:
 
 
 def run_tk_picker(title: str, initial: str, answer_file: str) -> None:
-    """Show a Tk folder dialog and write ``{"path": ...}`` to ``answer_file`` (Windows child process)."""
+    """Show a Tk folder dialog and write ``{"path": ...}`` to ``answer_file``.
+
+    This runs in a Windows child process.
+    """
     if sys.platform == "win32":
         try:
             import ctypes
@@ -138,7 +149,9 @@ def run_tk_picker(title: str, initial: str, answer_file: str) -> None:
     root.withdraw()
     root.attributes("-topmost", True)
     root.update()
-    path = filedialog.askdirectory(parent=root, title=title, initialdir=initial or None, mustexist=True)
+    path = filedialog.askdirectory(
+        parent=root, title=title, initialdir=initial or None, mustexist=True
+    )
     root.destroy()
     Path(answer_file).write_text(json.dumps({"path": path or None}), encoding="utf-8")
 

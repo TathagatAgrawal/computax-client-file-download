@@ -6,6 +6,17 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - name: Formatting
+        run: uv run ruff format --check .
+      - name: Lint and Google-style docstrings
+        run: uv run ruff check .
+
   test:
     strategy:
       fail-fast: false

@@ -72,9 +72,7 @@ def _subdirs(path: Path) -> list[os.DirEntry]:
 def year_dirs(root: Path) -> dict[int, Path]:
     """Return the four-digit year folders directly under ``root``."""
     return {
-        int(e.name): Path(e.path)
-        for e in _subdirs(root)
-        if YEAR_RE.fullmatch(e.name)
+        int(e.name): Path(e.path) for e in _subdirs(root) if YEAR_RE.fullmatch(e.name)
     }
 
 
@@ -95,7 +93,9 @@ def build_index(root: Path) -> dict[str, Client]:
             last_seen.setdefault(key, {})[entry.name] = year
     index = {}
     for key, by_year in folders.items():
-        display = max(spellings[key], key=lambda s: (spellings[key][s], last_seen[key][s]))
+        display = max(
+            spellings[key], key=lambda s: (spellings[key][s], last_seen[key][s])
+        )
         index[key] = Client(id=display, folders=by_year)
     return index
 
@@ -112,10 +112,18 @@ def check_root(root: Path) -> RootCheck:
     years = year_dirs(root)
     if not years:
         if YEAR_RE.fullmatch(root.name):
-            return RootCheck(False, f"This looks like a single year folder ({root.name}). Pick the folder that contains it.")
+            return RootCheck(
+                False,
+                f"This looks like a single year folder ({root.name}). "
+                "Pick the folder that contains it.",
+            )
         for child in _subdirs(root):
             if child.name.lower() == "computax" and year_dirs(Path(child.path)):
-                return RootCheck(False, f"This folder has no year folders, but {child.path} does. Pick that one.")
+                return RootCheck(
+                    False,
+                    f"This folder has no year folders, but {child.path} does. "
+                    "Pick that one.",
+                )
         return RootCheck(False, "This folder has no year folders (2019, 2020, ...).")
     index = build_index(root)
     if not index:
@@ -123,7 +131,8 @@ def check_root(root: Path) -> RootCheck:
     found = sorted(years)
     return RootCheck(
         True,
-        f"Found {len(found)} year folders ({found[0]}–{found[-1]}) and {len(index)} clients.",
+        f"Found {len(found)} year folders ({found[0]}–{found[-1]}) "
+        f"and {len(index)} clients.",
         found,
         len(index),
     )
@@ -156,12 +165,20 @@ def resolve_year(client_id: str, year: int, folder: Path) -> YearFiles:
             result.computation.append(folder / name)
         elif m := ANY_ITRV_RE.fullmatch(name):
             if m.group(1).upper() != client_id.upper():
-                foreign.append(f"{name} belongs to a different client ID ({m.group(1)}); not copied.")
+                foreign.append(
+                    f"{name} belongs to a different client ID "
+                    f"({m.group(1)}); not copied."
+                )
         elif m := ANY_COMPUTATION_RE.fullmatch(name):
             if m.group(1).upper() != client_id.upper():
-                foreign.append(f"{name} belongs to a different client ID ({m.group(1)}); not copied.")
+                foreign.append(
+                    f"{name} belongs to a different client ID "
+                    f"({m.group(1)}); not copied."
+                )
             else:
-                foreign.append(f"{name} is for year {m.group(2)}, not {year}; not copied.")
+                foreign.append(
+                    f"{name} is for year {m.group(2)}, not {year}; not copied."
+                )
     result.itrv.sort(key=lambda p: ("_revised" in p.name.lower(), p.name))
     result.computation.sort(key=lambda p: int(comp_re.fullmatch(p.name).group(1)))
     result.warnings = foreign

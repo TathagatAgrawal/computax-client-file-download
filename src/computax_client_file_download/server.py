@@ -20,7 +20,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from .copier import copy_client_files
-from .dialogs import DialogBusy, DialogUnavailable, FolderDialog, default_destination, open_in_file_manager
+from .dialogs import (
+    DialogBusy,
+    DialogUnavailable,
+    FolderDialog,
+    default_destination,
+    open_in_file_manager,
+)
 from .names import load_names
 from .scanner import Client, build_index, check_root, resolve_year, sorted_clients
 from .settings import save_root
@@ -52,9 +58,11 @@ class ApiError(Exception):
 
 
 class AppState:
-    """Everything the server knows: the CompuTax folder, the client index and UI liveness."""
+    """Everything the server knows: CompuTax folder, client index and UI liveness."""
 
-    def __init__(self, root: Path | None, settings_file: Path, dialog: FolderDialog | None = None) -> None:
+    def __init__(
+        self, root: Path | None, settings_file: Path, dialog: FolderDialog | None = None
+    ) -> None:
         """Create the state and index ``root`` if it is a valid CompuTax folder."""
         self.lock = threading.RLock()
         self.settings_file = settings_file
@@ -69,7 +77,7 @@ class AppState:
             self.set_root(root, save=False)
 
     def set_root(self, root: Path, save: bool) -> None:
-        """Switch to ``root``, rebuild the index and start loading names in the background."""
+        """Switch to ``root``, rebuild the index and load names in the background."""
         index = build_index(root)
         with self.lock:
             self._generation += 1
@@ -81,10 +89,14 @@ class AppState:
         if save:
             save_root(self.settings_file, str(root))
         clients = list(index.values())
-        threading.Thread(target=self._load_names, args=(generation, clients, done), daemon=True).start()
+        threading.Thread(
+            target=self._load_names, args=(generation, clients, done), daemon=True
+        ).start()
 
-    def _load_names(self, generation: int, clients: list[Client], done: threading.Event) -> None:
-        """Read client names and attach them, unless a newer scan has started meanwhile."""
+    def _load_names(
+        self, generation: int, clients: list[Client], done: threading.Event
+    ) -> None:
+        """Read client names and attach them unless a newer scan has started."""
         try:
             names = load_names(clients)
             with self.lock:
@@ -126,7 +138,9 @@ class AppServer(ThreadingHTTPServer):
 
     daemon_threads = True
 
-    def __init__(self, state: AppState, port: int = 0, token: str | None = None) -> None:
+    def __init__(
+        self, state: AppState, port: int = 0, token: str | None = None
+    ) -> None:
         """Bind to 127.0.0.1 on ``port`` (0 picks a free port)."""
         super().__init__(("127.0.0.1", port), Handler)
         self.state = state
@@ -190,14 +204,22 @@ class Handler(BaseHTTPRequestHandler):
     def _host_ok(self) -> bool:
         """Return True if the Host header names this server."""
         port = self.server.port
-        return self.headers.get("Host", "") in (f"127.0.0.1:{port}", f"localhost:{port}")
+        return self.headers.get("Host", "") in (
+            f"127.0.0.1:{port}",
+            f"localhost:{port}",
+        )
 
     def _check_token(self, given: str | None = None) -> None:
-        """Reject API requests without the session token (header, or ``given`` for event streams)."""
+        """Reject API requests lacking the session token.
+
+        The token comes from the header, or from ``given`` for event streams.
+        """
         if given is None:
             given = self.headers.get("X-Session-Token", "")
         if not hmac.compare_digest(given.encode(), self.server.token.encode()):
-            raise ApiError(401, "This page is from an earlier run of the app. Open the app again.")
+            raise ApiError(
+                401, "This page is from an earlier run of the app. Open the app again."
+            )
 
     def _events(self) -> None:
         """Hold a server-sent-events stream open for as long as the page is open."""
@@ -249,13 +271,15 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _send_static(self, name: str) -> None:
-        """Serve a file from the static folder; names with path separators are refused."""
+        """Serve a file from the static folder; path separators are refused."""
         path = STATIC_DIR / name
         if "/" in name or "\\" in name or name.startswith(".") or not path.is_file():
             raise ApiError(404, "Not found.")
         body = path.read_bytes()
         self.send_response(200)
-        self.send_header("Content-Type", CONTENT_TYPES.get(path.suffix, "application/octet-stream"))
+        self.send_header(
+            "Content-Type", CONTENT_TYPES.get(path.suffix, "application/octet-stream")
+        )
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
@@ -357,7 +381,11 @@ class Handler(BaseHTTPRequestHandler):
         client_id, years, dest = body.get("id"), body.get("years"), body.get("dest")
         if not isinstance(client_id, str):
             raise ApiError(400, "Choose a client.")
-        if not isinstance(years, list) or not years or not all(isinstance(y, int) for y in years):
+        if (
+            not isinstance(years, list)
+            or not years
+            or not all(isinstance(y, int) for y in years)
+        ):
             raise ApiError(400, "Choose at least one year.")
         if not isinstance(dest, str) or not dest.strip():
             raise ApiError(400, "Choose where to save the files.")
@@ -407,7 +435,7 @@ class Presence:
                 self.empty_since = time.monotonic()
 
     def should_exit(self, grace: float, startup: float) -> bool:
-        """Return True if no page is open and the grace (or startup) period has passed."""
+        """Return True if no page is open and the grace/startup period has passed."""
         with self._lock:
             if self.count:
                 return False
@@ -415,7 +443,9 @@ class Presence:
             return time.monotonic() - self.empty_since > limit
 
 
-def start_auto_exit(server: AppServer, grace: float = 4.0, startup: float = 90.0) -> threading.Thread:
+def start_auto_exit(
+    server: AppServer, grace: float = 4.0, startup: float = 90.0
+) -> threading.Thread:
     """Stop the server once no page has been open for ``grace`` seconds.
 
     If no page ever connects (for example, the browser failed to open), the
@@ -427,7 +457,9 @@ def start_auto_exit(server: AppServer, grace: float = 4.0, startup: float = 90.0
         """Poll the open-page count and shut the server down when it stays at zero."""
         while True:
             time.sleep(0.5)
-            if not server.state.dialog.is_open and server.presence.should_exit(grace, startup):
+            if not server.state.dialog.is_open and server.presence.should_exit(
+                grace, startup
+            ):
                 server.shutdown()
                 return
 

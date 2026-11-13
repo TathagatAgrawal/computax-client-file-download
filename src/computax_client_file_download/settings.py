@@ -64,7 +64,11 @@ def read_instance(path: Path) -> dict | None:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    ok = isinstance(data, dict) and isinstance(data.get("url"), str) and isinstance(data.get("token"), str)
+    ok = (
+        isinstance(data, dict)
+        and isinstance(data.get("url"), str)
+        and isinstance(data.get("token"), str)
+    )
     return data if ok else None
 
 

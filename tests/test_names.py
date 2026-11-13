@@ -2,7 +2,12 @@
 
 from pathlib import Path
 
-from computax_client_file_download.names import client_names, find_assessee_name, format_name, load_names
+from computax_client_file_download.names import (
+    client_names,
+    find_assessee_name,
+    format_name,
+    load_names,
+)
 from computax_client_file_download.scanner import build_index
 
 

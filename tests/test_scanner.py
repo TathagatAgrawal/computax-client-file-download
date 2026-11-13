@@ -2,7 +2,13 @@
 
 from pathlib import Path
 
-from computax_client_file_download.scanner import build_index, check_root, natural_key, resolve_year, sorted_clients
+from computax_client_file_download.scanner import (
+    build_index,
+    check_root,
+    natural_key,
+    resolve_year,
+    sorted_clients,
+)
 
 
 def test_index_merges_ids_case_insensitively(computax: Path) -> None:
@@ -26,7 +32,14 @@ def test_natural_sort_orders_numbers_numerically() -> None:
 
 def test_sorted_clients_uses_natural_order(computax: Path) -> None:
     """Clients come back in natural ID order."""
-    assert [c.id for c in sorted_clients(build_index(computax))] == ["1", "7D", "42", "99", "264B", "EMPTY"]
+    assert [c.id for c in sorted_clients(build_index(computax))] == [
+        "1",
+        "7D",
+        "42",
+        "99",
+        "264B",
+        "EMPTY",
+    ]
 
 
 def test_resolve_skips_compare_and_partial_files(computax: Path) -> None:
