@@ -92,7 +92,15 @@ def _run(args: argparse.Namespace) -> None:
     settings_file = default_settings_file()
     root = args.root or load_root(settings_file)
     state = AppState(Path(root).expanduser() if root else None, settings_file)
-    server = AppServer(state, args.port)
+    try:
+        server = AppServer(state, args.port)
+    except OSError as exc:
+        raise SystemExit(
+            f"{APP_NAME} could not listen on port {args.port}: "
+            f"{exc.strerror or exc}. Another program (or another copy of "
+            "this app) may be using it; pick a different --port, or omit it "
+            "to use any free port."
+        ) from exc
     record = instance_file()
     write_instance(record, server.url, server.token)
     print(f"{APP_NAME} is running at {server.url}", flush=True)

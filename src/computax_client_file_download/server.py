@@ -11,6 +11,7 @@ period that lets a page reload reconnect.
 
 import hmac
 import json
+import os
 import secrets
 import select
 import threading
@@ -137,6 +138,9 @@ class AppServer(ThreadingHTTPServer):
     """HTTP server that carries the app state and session token."""
 
     daemon_threads = True
+    # On Windows SO_REUSEADDR lets a second process bind a port that is in use,
+    # which would hide a busy port, so only POSIX gets it.
+    allow_reuse_address = os.name != "nt"
 
     def __init__(
         self, state: AppState, port: int = 0, token: str | None = None
